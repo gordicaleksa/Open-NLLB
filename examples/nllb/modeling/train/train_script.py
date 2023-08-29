@@ -13,6 +13,7 @@ from random import randint
 from re import M
 
 import hydra
+import stopes.core
 from omegaconf import MISSING, DictConfig, OmegaConf
 from stopes.core import StopesModule
 
@@ -131,6 +132,17 @@ class TrainModule(StopesModule):
         data_dir = data_dir[1:]  # remove leading colon
         print("data_dir: ", data_dir)
         self.data_dir = data_dir
+
+    def requirements(self):
+        return stopes.core.Requirements(
+            tasks_per_node=1,
+            nodes=1,
+            gpus_per_node=2,
+            cpus_per_task=8,
+            mem_gb=48,
+            timeout_min=self.config.cluster.timeout_min,
+            # constraint=self.config.cluster.constraint,
+        )
 
     def launch_job(self):
         # values in cfg configurable through entire .yaml files in conf/cfg/
@@ -284,7 +296,7 @@ class TrainModule(StopesModule):
         pass
 
 
-@hydra.main(config_path="conf", config_name="base_config")
+@hydra.main(config_path="conf", config_name="cfg/nllb200_dense3.3B_finetune_on_fbseed")
 def main(config: DictConfig) -> None:
     train_module = TrainModule(config)
     train_module.launch_job()

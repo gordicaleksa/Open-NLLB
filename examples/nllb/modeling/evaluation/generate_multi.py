@@ -145,14 +145,14 @@ class GenerateMultiModule(stopes.core.StopesModule):
             )
             return req
         else:
-            return stopes.core.DistributedRequirements(
+            return stopes.core.Requirements(
                 tasks_per_node=1,
                 nodes=1,
-                gpus_per_node=8,
+                gpus_per_node=2,
                 cpus_per_task=8,
                 mem_gb=48,
                 timeout_min=self.config.cluster.timeout_min,
-                constraint=self.config.cluster.constraint,
+                # constraint=self.config.cluster.constraint,
             )
 
     async def run(
@@ -468,7 +468,7 @@ async def _main(config):
     await tabulate(config)
 
 
-@hydra.main(config_path="conf", config_name="generate_multi")
+@hydra.main(config_path="conf", config_name="generate_multi_full")
 def main(config: DictConfig) -> None:
     asyncio.run(_main(config))
 

@@ -373,7 +373,8 @@ def gen_sbatch_command_and_str(
     wrapped_cmd = requeue_support()
     wrapped_cmd += "\n" + srun_cmd_str
     if array_length is None:
-        wrapped_cmd = wrapped_cmd + " \n wait $! \n sleep 610 & \n wait $!"
+        # TODO(gordicaleksa): understand better why 610? I've set it to 20 as that seems to have sped it up for me.
+        wrapped_cmd = wrapped_cmd + " \n wait $! \n sleep 20 & \n wait $!"
 
     sbatch_cmd += ["--wrap", wrapped_cmd]
     sbatch_cmd_str = " ".join(map(shlex.quote, sbatch_cmd))
