@@ -4,8 +4,8 @@ import os
 
 import numpy as np
 
-from line_cnt import count_lines
-from code_mapper import ISO_CODE_MAPPER_1_TO_3, FILTERED_LANG_CODES
+from examples.nllb.data.utils import count_lines
+from examples.nllb.data.iso_code_mappings import ISO_CODE_MAPPER_1_TO_3, FILTERED_LANG_CODES
 
 
 def analyze_primary_data(args):

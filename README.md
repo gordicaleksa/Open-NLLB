@@ -1,6 +1,24 @@
 ![No Language Left Behind](nllb.png?raw=true "NLLB")
 
-# No Language Left Behind
+# OPEN NLLB effort
+
+The main goal of this effort is to release truly **open-source** NLLB checkpoints that can be freely used
+even for commercial purposes. Meta released their checkpoints under non-commercial CC-NC-BY 4.0 license.
+
+Join [Aleksa Gordić - The AI Epiphany](https://discord.gg/peBrCpheKE) Discord server and the #meta-nllb-replication channel if you want to engage with the rest of the community.
+
+[Daily YouTube video streams here](https://www.youtube.com/@TheAIEpiphany).
+
+## Language champions
+
+Here is a list of contributors who are owners of their respective languages (they are all native speakers).
+
+TODO: add people here
+* ...
+
+Below is the original fairseq README:
+
+## No Language Left Behind
 No Language Left Behind (NLLB) is a first-of-its-kind, AI breakthrough project that open-sources models capable of delivering high-quality translations directly between any pair of 200+ languages — including low-resource languages like Asturian, Luganda, Urdu and more. It aims to help people communicate with anyone, anywhere, regardless of their language preferences.
 
 To enable the community to leverage and build on top of NLLB, we open source all our evaluation benchmarks(FLORES-200, NLLB-MD, Toxicity-200), LID models and training code, LASER3 encoders, data mining code, MMT training and inference code and our final NLLB-200 models and their smaller distilled versions, for easier use and adoption by the research community.
