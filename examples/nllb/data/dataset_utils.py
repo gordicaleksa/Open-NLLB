@@ -1,7 +1,7 @@
+from pathlib import Path
 import subprocess
 import shlex
 import typing as tp
-from pathlib import Path
 
 
 def open_file_cmd(filename: tp.Union[Path, str]) -> str:
@@ -43,13 +43,14 @@ def count_lines(filename: str) -> int:
     return lines_numbers[0]
 
 
-# using the subprocess module and "wc -l" bash command count the number of lines in the given file specified by the path
-# file_path = 'examples/nllb/data/tmp.py'
+if __name__ == '__main__':
+    pass
+    # file_path = 'examples/nllb/data/tmp.py'
 
-# # Method 1:
-# num_lines = int(subprocess.check_output(['wc', '-l', file_path]).decode('utf-8').split()[0])
-# print(num_lines)
+    # # Method 1:
+    # num_lines = int(subprocess.check_output(['wc', '-l', file_path]).decode('utf-8').split()[0])
+    # print(num_lines)
 
-# # Method 2:
-# num_lines2 = count_lines(file_path)
-# print(num_lines2)
+    # # Method 2:
+    # num_lines2 = count_lines(file_path)
+    # print(num_lines2)

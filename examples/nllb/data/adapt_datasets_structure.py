@@ -2,13 +2,11 @@ import os
 import re
 import shutil
 
-from iso_code_mappings import FILTERED_LANG_CODES, AMBIGUOUS_ISO_639_3_CODES, ISO_CODE_MAPPER_1_TO_3, ISO_639_3_TO_BCP_47, retrieve_supported_files_and_directions
+from iso_code_mappings import UNSUPPORTED_LANG_CODES, AMBIGUOUS_ISO_639_3_CODES, ISO_639_1_TO_ISO_639_3, ISO_639_3_TO_BCP_47, retrieve_supported_files_and_iso_639_3_codes
 
 datasets_root = '/home/aleksa/Projects/nllb/fairseq/examples/nllb/data/datasets'
 non_train_datasets_path = os.path.join(datasets_root, os.pardir, 'non_train_datasets')
 
-# TODO(gordicaleksa): instead of 3 letter codes (ISO 639-3) let's use the format xxx_<script> a la Flores dataset, so-called BCP 47 code.
-# this is important so that we have uniform naming scheme throughout the datasets.
 # TODO(gordicaleksa): potentially add both directions for each language pair.
 # TODO(gordicaleksa): for minangnlp remove script (Latn) from lang direction name to make it consistent with the rest of the datasets.
 # NLLB-Seed, minangnlp
@@ -43,11 +41,11 @@ def map_to_bcp47():
                 continue
             src, trg = lang_direction.split('-')
             if len(src) == 2:
-                src = ISO_CODE_MAPPER_1_TO_3[src]
+                src = ISO_639_1_TO_ISO_639_3[src]
             if len(trg) == 2:
-                trg = ISO_CODE_MAPPER_1_TO_3[trg]
+                trg = ISO_639_1_TO_ISO_639_3[trg]
 
-            if src in FILTERED_LANG_CODES or trg in FILTERED_LANG_CODES:
+            if src in UNSUPPORTED_LANG_CODES or trg in UNSUPPORTED_LANG_CODES:
                 print(f'Found unsupported lang code ({src} or {trg}) in {dataset_name} dataset.')
                 target_path = os.path.join(non_train_datasets_path, dataset_name)
                 os.makedirs(target_path, exist_ok=True)
@@ -88,7 +86,7 @@ def map_to_bcp47():
             for file in os.listdir(os.path.join(dataset_path, new_lang_direction_name)):
                 suffix = file.split('.')[-1]
                 if len(suffix) == 2:
-                    suffix = ISO_CODE_MAPPER_1_TO_3[suffix]
+                    suffix = ISO_639_1_TO_ISO_639_3[suffix]
 
                 if not suffix in ISO_639_3_TO_BCP_47:
                     assert bcp47_regex_pattern.match(suffix), f'{suffix} does not match the BCP 47 regex pattern.'
@@ -140,13 +138,13 @@ def fix_datasets_structure():
                 indic_dataset_path = os.path.join(datasets_root, indic_dataset_dirname)
                 for el in os.listdir(indic_dataset_path):
                     src, trg = el.split('-')
-                    src = ISO_CODE_MAPPER_1_TO_3[src]
-                    trg = ISO_CODE_MAPPER_1_TO_3[trg]
+                    src = ISO_639_1_TO_ISO_639_3[src]
+                    trg = ISO_639_1_TO_ISO_639_3[trg]
                     new_dirname = f'{src}-{trg}'
                     indic_dataset_lang_direction = os.path.join(indic_dataset_path, new_dirname)
                     os.rename(os.path.join(indic_dataset_path, el), indic_dataset_lang_direction)
                     for file in os.listdir(indic_dataset_lang_direction):
-                        suffix = ISO_CODE_MAPPER_1_TO_3[file.split('.')[-1]]
+                        suffix = ISO_639_1_TO_ISO_639_3[file.split('.')[-1]]
                         prefix = file[:file.rfind('.')]
                         os.rename(
                             os.path.join(indic_dataset_lang_direction, file),
@@ -177,7 +175,7 @@ def fix_datasets_structure():
         if has_dirs:
             pass
         else:
-            dataset_content = [file_lang_dir[0] for file_lang_dir in retrieve_supported_files_and_directions(dataset_content)]
+            dataset_content = [file_lang_dir[0] for file_lang_dir in retrieve_supported_files_and_iso_639_3_codes(dataset_content)]
             if len(dataset_content) == 0:
                 continue
             assert len(dataset_content) == 2, f'Expected 2 files, got {len(dataset_content)}'
@@ -188,11 +186,11 @@ def fix_datasets_structure():
             is_iso_639_1_2 = False
 
             if len(lang1) == 2:
-                lang1 = ISO_CODE_MAPPER_1_TO_3[lang1]
+                lang1 = ISO_639_1_TO_ISO_639_3[lang1]
                 is_iso_639_1_1 = True
 
             if len(lang2) == 2:
-                lang2 = ISO_CODE_MAPPER_1_TO_3[lang2]
+                lang2 = ISO_639_1_TO_ISO_639_3[lang2]
                 is_iso_639_1_2 = True
 
             dirname1 = f'{lang1}-{lang2}'

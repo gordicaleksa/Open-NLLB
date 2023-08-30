@@ -1,5 +1,8 @@
 # No Language Left Behind : Data
 
+### STEP BY STEP TUTORIAL TO PREPARE THE DATA BY GORDICALEKSA
+TODO(gordicaleksa): add instructions so that someone can come and immediately have all the data in the expected structure (expected by the filtering pipeline)
+
 ### Primary Datasets
 
 #### Public data

@@ -4,8 +4,8 @@ import os
 
 import numpy as np
 
-from examples.nllb.data.utils import count_lines
-from examples.nllb.data.iso_code_mappings import retrieve_supported_files_and_directions
+from dataset_utils import count_lines
+from iso_code_mappings import retrieve_supported_files_and_iso_639_3_codes
 
 
 def analyze_primary_data(args):
@@ -13,7 +13,7 @@ def analyze_primary_data(args):
 
     cnt = 0
     for root_dir, _, files in os.walk(datasets_root):
-        files_and_lang_directions = retrieve_supported_files_and_directions(files)
+        files_and_lang_directions = retrieve_supported_files_and_iso_639_3_codes(files)
         cnt += len(files_and_lang_directions)
 
     print(f'Number of lang files we found: {cnt}')
@@ -22,7 +22,7 @@ def analyze_primary_data(args):
     lang_num_sentences = defaultdict(int)
     cnt_f = 0
     for root_dir, _, files in os.walk(datasets_root):
-        files_and_lang_directions = retrieve_supported_files_and_directions(files)
+        files_and_lang_directions = retrieve_supported_files_and_iso_639_3_codes(files)
         for (file, lang_code) in files_and_lang_directions:
             cnt_f += 1
             print(f'{cnt_f}/{cnt} Counting lines in {file}.')
@@ -34,27 +34,25 @@ def analyze_primary_data(args):
     # Count number of lines for each lang direction.
     lang_direction_num_sentences = defaultdict(int)
     for root_dir, _, files in os.walk(datasets_root):
-        if len(files) == 0:
+        files_and_lang_directions = retrieve_supported_files_and_iso_639_3_codes(files)
+        if len(files_and_lang_directions) == 0:
             continue
 
-        files_and_lang_directions = retrieve_supported_files_and_directions(files)
+        assert len(files_and_lang_directions) == 2, f'Found {len(files_and_lang_directions)} files in {root_dir}.'
 
-        for i in range(len(files_and_lang_directions)):
-            for j in range(len(files_and_lang_directions)):
-                if i == j:
-                    continue
+        file_0, lang_code_0 = files_and_lang_directions[0]
+        file_1, lang_code_1 = files_and_lang_directions[1]
 
-                file_i, lang_code_i = files_and_lang_directions[i]
-                file_j, lang_code_j = files_and_lang_directions[j]
+        num_lines_0 = count_lines(os.path.join(root_dir, file_0))
+        num_lines_1 = count_lines(os.path.join(root_dir, file_1))
 
-                num_lines_i = count_lines(os.path.join(root_dir, file_i))
-                num_lines_j = count_lines(os.path.join(root_dir, file_j))
-                if num_lines_i != num_lines_j:
-                    print(f'Number of lines in {file_i} and {file_j} do not match.')
-                    continue
+        if num_lines_0 != num_lines_1:
+            print(f'Number of lines in {file_0} and {file_1} do not match.')
+            continue
 
-                key = f'{lang_code_i}-{lang_code_j}'
-                lang_direction_num_sentences[key] += num_lines_i
+        # Note: We could also count the other direction.
+        key = f'{lang_code_0}-{lang_code_1}'
+        lang_direction_num_sentences[key] += num_lines_0
 
     print(f'Found {len(lang_direction_num_sentences)} lang directions.')
 
@@ -69,7 +67,7 @@ def analyze_primary_data(args):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
-        "Script to download individual public copora for NLLB"
+        "Script to analyze certain statistics of the primary data."
     )
     parser.add_argument(
         "--datasets_root",
@@ -83,7 +81,7 @@ if __name__ == '__main__':
         "-p",
         type=str,
         required=True,
-        help="extended list of 202+ ISO codes - added by manual inspection, added macro-langs.",
+        help="extended list of 202 639_3 ISO codes + some macro-language codes.",
     )
     args = parser.parse_args()
     analyze_primary_data(args)
