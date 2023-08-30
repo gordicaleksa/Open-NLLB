@@ -5,36 +5,11 @@ import os
 import numpy as np
 
 from examples.nllb.data.utils import count_lines
-from examples.nllb.data.iso_code_mappings import ISO_CODE_MAPPER_1_TO_3, FILTERED_LANG_CODES
+from examples.nllb.data.iso_code_mappings import retrieve_supported_files_and_directions
 
 
 def analyze_primary_data(args):
     datasets_root = args.datasets_root
-    extended_langs_path = args.extended_langs_path
-
-    with open(extended_langs_path, 'r') as f:
-        SUPPORTED_ISO_3_LANG_CODES_AND_SCRIPT = f.readlines()[0].strip().split(',')
-        SUPPORTED_ISO_3_LANG_CODES = [lang.split('_')[0] for lang in SUPPORTED_ISO_3_LANG_CODES_AND_SCRIPT]
-
-    def retrieve_supported_files_and_directions(files):
-        new_files = []
-
-        for file in files:
-            suffix = file.split('.')[-1]
-            if suffix in FILTERED_LANG_CODES:
-                continue
-            if file in SUPPORTED_ISO_3_LANG_CODES_AND_SCRIPT:
-                new_files.append((file, file.split('_')[0]))
-            elif suffix in SUPPORTED_ISO_3_LANG_CODES_AND_SCRIPT:
-                new_files.append((file, suffix.split('_')[0]))
-            elif suffix in SUPPORTED_ISO_3_LANG_CODES:
-                new_files.append((file, suffix))
-            elif suffix in ISO_CODE_MAPPER_1_TO_3.keys():
-                new_files.append((file, ISO_CODE_MAPPER_1_TO_3[suffix]))
-            else:
-                print(f'Skipping {os.path.join(root_dir, file)}.')
-
-        return new_files
 
     cnt = 0
     for root_dir, _, files in os.walk(datasets_root):

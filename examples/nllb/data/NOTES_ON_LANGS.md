@@ -2,6 +2,7 @@ We have lang codes present in our primary datasets like:
 * aar -> Afar language, but it's not supported so we can safely ignore it.
 * nde -> NDebele, not supported in NLLB even though present in datasets.
 * ven -> Venda, not supported.
+* gag -> Gagauz, not supported by NLLB.
 
 * orm -> Oromo macro-language, but NLLB only supports a single language from that macro group -> gaz – West Central Oromo
 because none of the files were included that had "gaz" as a suffix/infix we extended langs.txt with "orm"
@@ -30,7 +31,6 @@ TODO: someone whose native lang is Ethiopian help?
 
 TODO: someone help make sure this is southwestern dinka
 
-* gag -> apparently Ganda language according to Google Translate but this code is apparently not ISO 639-2/3 code? I'll add it to extended_langs.txt.
 
 TODO: someone help understand this
 
