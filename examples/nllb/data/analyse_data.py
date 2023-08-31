@@ -5,7 +5,7 @@ import os
 import numpy as np
 
 from dataset_utils import count_lines
-from iso_code_mappings import retrieve_supported_files_and_iso_639_3_codes
+from lang_code_mappings import retrieve_supported_files_and_iso_639_3_codes
 
 
 def analyze_primary_data(args):
@@ -66,6 +66,18 @@ def analyze_primary_data(args):
     plt.show()
 
 if __name__ == '__main__':
+    #
+    # Note: expects that you've already run the `modify_datasets_structure.py` script.
+    # The datasets should have the following structure:
+    #   - datasets_root
+    #       - dataset_name
+    #           - lang_code_1-lang_code_2
+    #               - data_file.lang_code_1
+    #               - data_file.lang_code_2
+    #           - lang_code_3-lang_code_4
+    #               - data_file.lang_code_3
+    #               - data_file.lang_code_4
+    #
     parser = argparse.ArgumentParser(
         "Script to analyze certain statistics of the primary data."
     )

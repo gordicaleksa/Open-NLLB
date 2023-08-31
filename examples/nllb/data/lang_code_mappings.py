@@ -310,6 +310,10 @@ ISO_639_3_TO_BCP_47 = {
     "kor": [
         "kor_Hang"
     ],
+    # Manually added after analyzing bianet dataset and seeing Latn script (thus concluding it's Northern Kurdish)
+    "kur": [
+        "kmr_Latn"
+    ],
     "kmr": [
         "kmr_Latn"
     ],
@@ -561,6 +565,9 @@ ISO_639_3_TO_BCP_47 = {
     "tha": [
         "tha_Thai"
     ],
+    "tir_ET": [
+        "tir_Ethi"
+    ],
     "tir": [
         "tir_Ethi"
     ],
@@ -685,26 +692,32 @@ with open(extended_langs_path, 'r') as f:
     EXTENDED_SUPPORTED_ISO_639_3_CODES_AND_SCRIPTS = f.readlines()[0].strip().split(',')
     EXTENDED_SUPPORTED_ISO_639_3_CODES = [lang.split('_')[0] for lang in EXTENDED_SUPPORTED_ISO_639_3_CODES_AND_SCRIPTS]
     SUPPORTED_ISO_639_1_CODES = ISO_639_1_TO_ISO_639_3.keys()
+    bcp_47_codes = []
+    for v in ISO_639_3_TO_BCP_47.values():
+        bcp_47_codes.extend(v)
+    SUPPORTED_BCP_47_CODES = list(set(bcp_47_codes))
+    assert len(SUPPORTED_BCP_47_CODES) == 202, f'Expected 202 supported langs, got {len(SUPPORTED_BCP_47_CODES)}.'
 
 def retrieve_supported_files_and_iso_639_3_codes(files):
     new_files_and_iso_639_3_codes = []
 
     for file in files:
-        lang_code_suffix = file.split('.')[-1]
-        if lang_code_suffix in UNSUPPORTED_LANG_CODES:
-            continue
-        if file in EXTENDED_SUPPORTED_ISO_639_3_CODES_AND_SCRIPTS:
-            raise Exception(f'Legacy - we should never hit this branch.')
-            # iso_639_3_code = file.split('_')[0]
-            # new_files_and_lang_directions.append((file, iso_639_3_code))
-        elif lang_code_suffix in EXTENDED_SUPPORTED_ISO_639_3_CODES_AND_SCRIPTS:
-            new_files_and_iso_639_3_codes.append((file, lang_code_suffix.split('_')[0]))
-        elif lang_code_suffix in EXTENDED_SUPPORTED_ISO_639_3_CODES:
-            new_files_and_iso_639_3_codes.append((file, lang_code_suffix))
-        elif lang_code_suffix in SUPPORTED_ISO_639_1_CODES:
-            new_files_and_iso_639_3_codes.append((file, ISO_639_1_TO_ISO_639_3[lang_code_suffix]))
-        else:
-            print(f'Skipping {file}.')
+        if os.path.isfile(file):
+            lang_code_suffix = file.split('.')[-1]
+            if lang_code_suffix in UNSUPPORTED_LANG_CODES:
+                continue
+            if file in EXTENDED_SUPPORTED_ISO_639_3_CODES_AND_SCRIPTS:
+                raise Exception(f'Legacy - we should never hit this branch.')
+                # iso_639_3_code = file.split('_')[0]
+                # new_files_and_lang_directions.append((file, iso_639_3_code))
+            elif lang_code_suffix in EXTENDED_SUPPORTED_ISO_639_3_CODES_AND_SCRIPTS:
+                new_files_and_iso_639_3_codes.append((file, lang_code_suffix.split('_')[0]))
+            elif lang_code_suffix in EXTENDED_SUPPORTED_ISO_639_3_CODES:
+                new_files_and_iso_639_3_codes.append((file, lang_code_suffix))
+            elif lang_code_suffix in SUPPORTED_ISO_639_1_CODES:
+                new_files_and_iso_639_3_codes.append((file, ISO_639_1_TO_ISO_639_3[lang_code_suffix]))
+            else:
+                print(f'Skipping {file}.')
 
     return new_files_and_iso_639_3_codes
 

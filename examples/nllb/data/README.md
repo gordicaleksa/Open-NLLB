@@ -1,7 +1,12 @@
 # No Language Left Behind : Data
 
 ### STEP BY STEP TUTORIAL TO PREPARE THE DATA BY GORDICALEKSA
-TODO(gordicaleksa): add instructions so that someone can come and immediately have all the data in the expected structure (expected by the filtering pipeline)
+
+1. Run the `download_parallel_corpora.py` script (see below) + download NLLB-Seed (`wget --trust-server-names https://tinyurl.com/NLLBSeed`)
+2. Run the `modify_datasets_structure.py --datasets_root $DOWNLOAD_DIRECTORY` script (where $DOWNLOAD_DIRECTORY is the same directory as what you used with `download_parallel_corpora.py`)
+3. Use stopes to filter & prepare data (see the rest of the original README)
+
+If you want to analyze number of lines of bi-text for each of the languages in the primary dataset check out the `analyse_data.py` script.
 
 ### Primary Datasets
 

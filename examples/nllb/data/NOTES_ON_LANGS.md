@@ -28,6 +28,7 @@ TODO: We need people who are native in the following languages to assist:
 * Oromo (West Central Oromo language question)
 * Pashto (Southern Pashto question)
 * Ethiopian
-* Southwestern dinka
+* Southwestern Dinka
+* Odia (mtenglish2odia dataset)
 
 Note: `extended_langs.txt` contains the BCP 47 codes of the original 202 NLLB languages + some macro-lang codes that helps us not filter certain files out when they have a macro lang code as an infix or suffix.
