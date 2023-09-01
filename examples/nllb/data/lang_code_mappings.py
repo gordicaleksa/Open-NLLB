@@ -698,26 +698,25 @@ with open(extended_langs_path, 'r') as f:
     SUPPORTED_BCP_47_CODES = list(set(bcp_47_codes))
     assert len(SUPPORTED_BCP_47_CODES) == 202, f'Expected 202 supported langs, got {len(SUPPORTED_BCP_47_CODES)}.'
 
-def retrieve_supported_files_and_iso_639_3_codes(files):
+def retrieve_supported_files_and_iso_639_3_codes(files, is_gz=False):
     new_files_and_iso_639_3_codes = []
 
     for file in files:
-        if os.path.isfile(file):
-            lang_code_suffix = file.split('.')[-1]
-            if lang_code_suffix in UNSUPPORTED_LANG_CODES:
-                continue
-            if file in EXTENDED_SUPPORTED_ISO_639_3_CODES_AND_SCRIPTS:
-                raise Exception(f'Legacy - we should never hit this branch.')
-                # iso_639_3_code = file.split('_')[0]
-                # new_files_and_lang_directions.append((file, iso_639_3_code))
-            elif lang_code_suffix in EXTENDED_SUPPORTED_ISO_639_3_CODES_AND_SCRIPTS:
-                new_files_and_iso_639_3_codes.append((file, lang_code_suffix.split('_')[0]))
-            elif lang_code_suffix in EXTENDED_SUPPORTED_ISO_639_3_CODES:
-                new_files_and_iso_639_3_codes.append((file, lang_code_suffix))
-            elif lang_code_suffix in SUPPORTED_ISO_639_1_CODES:
-                new_files_and_iso_639_3_codes.append((file, ISO_639_1_TO_ISO_639_3[lang_code_suffix]))
-            else:
-                print(f'Skipping {file}.')
+        lang_code_suffix = file.split('.')[-2] if is_gz else file.split('.')[-1]
+        if lang_code_suffix in UNSUPPORTED_LANG_CODES:
+            continue
+        if file in EXTENDED_SUPPORTED_ISO_639_3_CODES_AND_SCRIPTS:
+            raise Exception(f'Legacy - we should never hit this branch.')
+            # iso_639_3_code = file.split('_')[0]
+            # new_files_and_lang_directions.append((file, iso_639_3_code))
+        elif lang_code_suffix in EXTENDED_SUPPORTED_ISO_639_3_CODES_AND_SCRIPTS:
+            new_files_and_iso_639_3_codes.append((file, lang_code_suffix.split('_')[0]))
+        elif lang_code_suffix in EXTENDED_SUPPORTED_ISO_639_3_CODES:
+            new_files_and_iso_639_3_codes.append((file, lang_code_suffix))
+        elif lang_code_suffix in SUPPORTED_ISO_639_1_CODES:
+            new_files_and_iso_639_3_codes.append((file, ISO_639_1_TO_ISO_639_3[lang_code_suffix]))
+        else:
+            print(f'Skipping {file}.')
 
     return new_files_and_iso_639_3_codes
 

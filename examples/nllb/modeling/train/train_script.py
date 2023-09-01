@@ -138,7 +138,7 @@ class TrainModule(StopesModule):
             tasks_per_node=1,
             nodes=1,
             gpus_per_node=2,
-            cpus_per_task=8,
+            cpus_per_task=16,
             mem_gb=48,
             timeout_min=self.config.cluster.timeout_min,
             # constraint=self.config.cluster.constraint,
