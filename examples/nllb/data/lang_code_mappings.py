@@ -1,4 +1,7 @@
 import os
+import re
+
+BCP47_REGEX = re.compile(r'[a-z]{3}_[a-zA-Z]{4}')
 
 # Created by manual inspection by @gordicaleksa, check NOTES_ON_LANGS.md file as well for more information.
 UNSUPPORTED_LANG_CODES = ['slr', 'kum', 'sah', 'alt', 'tyv', 'kaa', 'kjh', 'cjs', 'chv', 'krc', 'tir_ER', 'aar', 'nde', 'ven', 'uum', 'gag']
@@ -665,6 +668,17 @@ ISO_639_1_TO_ISO_639_3 = {
     'kn' : 'kan',
     'te' : 'tel',
     'fr' : 'fra',
+    "az": "aze",
+    "ba": "bak",
+    "cv": "chv",
+    "kk": "kaz",
+    "ky": "kir",
+    "ru": "rus",
+    "tk": "tuk",
+    "tr": "tur",
+    "tt": "tat",
+    "ug": "uig",
+    "uz": "uzb",
 }
 
 # def build_iso_3_to_bcp_mapping():

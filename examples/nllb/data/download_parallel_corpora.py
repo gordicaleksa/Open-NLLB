@@ -17,6 +17,8 @@ import openpyxl
 import requests
 from translate.storage.tmx import tmxfile
 
+from lang_code_mappings import BCP47_REGEX, UNSUPPORTED_LANG_CODES, ISO_639_1_TO_ISO_639_3, ISO_639_3_TO_BCP_47, AMBIGUOUS_ISO_639_3_CODES
+
 """
 Dependencies:
 openpyxl (pip)
@@ -69,10 +71,22 @@ def download_TIL(directory):
     https://arxiv.org/pdf/2109.04593.pdf
     https://github.com/turkic-interlingua/til-mt
     Total download: 22.4 GB
+
+    The output structure is:
+    TIL/
+        bcp47_code1-bcp47_code2/
+            til.bcp47_code1
+            til.bcp47_code2
+        bcp47_code3-bcp47_code4/
+            til.bcp47_code3
+            til.bcp47_code4
+        ...
+    We have an expectation that each download function obeys this structure.
     """
-    dataset_directory = os.path.join(directory, "til")
+    corpus_name = "til"
+    dataset_directory = os.path.join(directory, corpus_name)
     os.makedirs(dataset_directory, exist_ok=True)
-    print("Saving TIL data to:", dataset_directory)
+    print(f"Saving {corpus_name} data to:", dataset_directory)
 
     til_train_url = "gs://til-corpus/corpus/train/*"
     command = f"gsutil -m cp -r {til_train_url} {dataset_directory}"
@@ -81,54 +95,56 @@ def download_TIL(directory):
         os.system(command)
     except Exception as e:
         print(f"gsutil download failed! \n{e}")
-
-    # we map to three-letter ISO 639-3 code (for NLLB langs)
-    lang_map = {
-        "az": "aze",
-        "ba": "bak",
-        "cv": "chv",
-        "en": "eng",
-        "kk": "kaz",
-        "ky": "kir",
-        "ru": "rus",
-        "tk": "tuk",
-        "tr": "tur",
-        "tt": "tat",
-        "ug": "uig",
-        "uz": "uzb",
-    }
+        raise e
 
     pair_directories = os.listdir(dataset_directory)
     for pair_directory in pair_directories:
         try:
             src, tgt = pair_directory.split("-")
         except:
-            print("Unexpected TIL pair directory name:", pair_directory)
+            raise Exception(f"Unexpected {corpus_name} pair directory name! {pair_directory}")
 
-        try:
-            dest_src = lang_map[src]
-        except:
-            dest_src = src
+        dest_src = ISO_639_1_TO_ISO_639_3[src] if len(src) == 2 else src
+        if BCP47_REGEX.match(dest_src):
+            dest_src = dest_src.split("_")[0]
+        if dest_src in AMBIGUOUS_ISO_639_3_CODES:
+            raise Exception(f'Please manually decide which script is being used.')
+        if dest_src in UNSUPPORTED_LANG_CODES:
+            print(f"{dest_src} language is unsupported! Deleting this piece of data.")
+            shutil.rmtree(os.path.join(dataset_directory, pair_directory))
+            continue
+        dest_src = ISO_639_3_TO_BCP_47[dest_src][0]
 
-        try:
-            dest_tgt = lang_map[tgt]
-        except:
-            dest_tgt = tgt
+        dest_tgt = ISO_639_1_TO_ISO_639_3[tgt] if len(tgt) == 2 else tgt
+        if BCP47_REGEX.match(dest_tgt):
+            dest_tgt = dest_tgt.split("_")[0]
+        if dest_tgt in AMBIGUOUS_ISO_639_3_CODES:
+            raise Exception(f'Please manually decide which script is being used.')
+        if dest_tgt in UNSUPPORTED_LANG_CODES:
+            print(f"{dest_tgt} language is unsupported! Deleting this piece of data.")
+            shutil.rmtree(os.path.join(dataset_directory, pair_directory))
+            continue
+        dest_tgt = ISO_639_3_TO_BCP_47[dest_tgt][0]
 
         pair_directory_path = os.path.join(dataset_directory, pair_directory)
-        os.rename(
-            os.path.join(pair_directory_path, f"{src}-{tgt}.{src}"),
-            os.path.join(pair_directory_path, f"til.{dest_src}"),
-        )
-        os.rename(
-            os.path.join(pair_directory_path, f"{src}-{tgt}.{tgt}"),
-            os.path.join(pair_directory_path, f"til.{dest_tgt}"),
-        )
+        try:
+            os.rename(
+                os.path.join(pair_directory_path, f"{src}-{tgt}.{src}"),
+                os.path.join(pair_directory_path, f"{corpus_name}.{dest_src}"),
+            )
+            os.rename(
+                os.path.join(pair_directory_path, f"{src}-{tgt}.{tgt}"),
+                os.path.join(pair_directory_path, f"{corpus_name}.{dest_tgt}"),
+            )
+        except:
+            files = os.listdir(pair_directory_path)
+            assert files[0] == f"{corpus_name}.{dest_src}" if dest_src in files[0] else files[0] == f"{corpus_name}.{dest_tgt}"
+            assert files[1] == f"{corpus_name}.{dest_tgt}" if dest_tgt in files[1] else files[1] == f"{corpus_name}.{dest_src}"
+
         renamed_pair_directory = os.path.join(
             dataset_directory, f"{dest_src}-{dest_tgt}"
         )
         os.rename(pair_directory_path, renamed_pair_directory)
-        print(f"Renamed to: {renamed_pair_directory}")
 
 
 def download_TICO(directory, verbose=False):
@@ -1183,7 +1199,7 @@ def download_aau(directory):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
-        "Script to download individual public copora for NLLB"
+        "Script to download individual public corpora for NLLB"
     )
     parser.add_argument(
         "--directory",
@@ -1195,10 +1211,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     directory = args.directory
-
-    if not os.path.isdir(directory):
-        print(f"Creating directory: {directory}")
-        os.mkdir(directory)
+    os.makedirs(directory, exist_ok=True)
 
     # Important:
     # By uncommenting the function below and downloading the
@@ -1207,23 +1220,23 @@ if __name__ == "__main__":
     # download_Mburisano_Covid(directory)
 
     download_TIL(directory)
-    download_TICO(directory)
-    download_IndicNLP(directory)
-    download_Lingala_Song_Lyrics(directory)
-    download_FFR(directory)
-    download_Mburisano_Covid(directory)
-    download_XhosaNavy(directory)
-    download_Menyo20K(directory)
-    download_FonFrench(directory)
-    download_FrenchEwe(directory)
-    download_Akuapem(directory)
-    download_GiossaMedia(directory)
-    download_KinyaSMT(directory)
-    download_translation_memories_from_Nynorsk(directory)
-    download_mukiibi(directory)
-    download_umsuka(directory)
-    download_CMU_Haitian_Creole(directory)
-    download_Bianet(directory)
-    download_HornMT(directory)
-    download_minangNLP(directory)
-    download_aau(directory)
+    # download_TICO(directory)
+    # download_IndicNLP(directory)
+    # download_Lingala_Song_Lyrics(directory)
+    # download_FFR(directory)
+    # download_Mburisano_Covid(directory)
+    # download_XhosaNavy(directory)
+    # download_Menyo20K(directory)
+    # download_FonFrench(directory)
+    # download_FrenchEwe(directory)
+    # download_Akuapem(directory)
+    # download_GiossaMedia(directory)
+    # download_KinyaSMT(directory)
+    # download_translation_memories_from_Nynorsk(directory)
+    # download_mukiibi(directory)
+    # download_umsuka(directory)
+    # download_CMU_Haitian_Creole(directory)
+    # download_Bianet(directory)
+    # download_HornMT(directory)
+    # download_minangNLP(directory)
+    # download_aau(directory)

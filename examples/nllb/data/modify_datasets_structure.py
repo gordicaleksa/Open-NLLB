@@ -3,9 +3,8 @@ import os
 import re
 import shutil
 
-from lang_code_mappings import UNSUPPORTED_LANG_CODES, AMBIGUOUS_ISO_639_3_CODES, ISO_639_1_TO_ISO_639_3, ISO_639_3_TO_BCP_47, SUPPORTED_BCP_47_CODES, retrieve_supported_files_and_iso_639_3_codes
+from lang_code_mappings import BCP47_REGEX, UNSUPPORTED_LANG_CODES, AMBIGUOUS_ISO_639_3_CODES, ISO_639_1_TO_ISO_639_3, ISO_639_3_TO_BCP_47, SUPPORTED_BCP_47_CODES, retrieve_supported_files_and_iso_639_3_codes
 
-BCP47_REGEX = re.compile(r'[a-z]{3}_[a-zA-Z]{4}')
 
 # TODO(gordicaleksa): Should we add both directions for each language pair? I do that for "flat" datasets. I.e. datasets whose structure is "datasetname/lang_files" with no intermediate directory.
 
