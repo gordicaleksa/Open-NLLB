@@ -315,7 +315,6 @@ def download_TICO(directory, verbose=False):
         raise Exception("Could not download any data for TICO!")
 
 
-# TODO: map directories & files to BCP 47
 def download_IndicNLP(directory, non_train_datasets_path):
     """
     http://lotus.kuee.kyoto-u.ac.jp/WAT/indic-multilingual/
@@ -362,9 +361,31 @@ def download_IndicNLP(directory, non_train_datasets_path):
     target_directory = os.path.join(target_directory, 'train')
     os.makedirs(target_directory, exist_ok=True)
 
+    # Rename files & lang direction directories to BCP 47.
     for el in os.listdir(train_path):
-        if os.path.isdir(os.path.join(train_path, el)):
-            shutil.move(os.path.join(train_path, el), os.path.join(directory, el))
+        child_dataset_path = os.path.join(train_path, el)
+        if os.path.isdir(child_dataset_path):
+            for lang_direction in os.listdir(child_dataset_path):
+                lang_direction_path = os.path.join(child_dataset_path, lang_direction)
+                assert os.path.isdir(lang_direction_path), f"Expected {lang_direction_path} to be a directory!"
+                should_del_flag = False
+                for file in os.listdir(lang_direction_path):
+                    file_path = os.path.join(lang_direction_path, file)
+                    suffix = file.split('.')[-1]
+                    suffix_bcp47 = convert_into_bcp47(suffix)
+                    if suffix_bcp47 == UNSUPPORTED_CODE:
+                        should_del_flag = True
+                        break
+                    new_file_path = os.path.join(lang_direction_path, f'{corpus_name}.{suffix_bcp47}')
+                    os.rename(file_path, new_file_path)
+                if should_del_flag:
+                    shutil.rmtree(lang_direction_path)
+                else:
+                    src, trg = lang_direction.split('-')
+                    src_bcp47 = convert_into_bcp47(src)
+                    trg_bcp47 = convert_into_bcp47(trg)
+                    os.rename(lang_direction_path, os.path.join(child_dataset_path, f'{src_bcp47}-{trg_bcp47}'))
+            shutil.move(child_dataset_path, os.path.join(directory, el))
         else:
             shutil.move(os.path.join(train_path, el), os.path.join(target_directory, el))
 
@@ -1338,8 +1359,8 @@ if __name__ == "__main__":
     # download_IndicNLP(directory, non_train_datasets_path)
     # download_Lingala_Song_Lyrics(directory)
     # download_FFR(directory)
-    download_Mburisano_Covid(directory)
-    # download_XhosaNavy(directory)
+    # download_Mburisano_Covid(directory)
+    download_XhosaNavy(directory)
     # download_Menyo20K(directory)
     # download_FonFrench(directory)
     # download_FrenchEwe(directory)
