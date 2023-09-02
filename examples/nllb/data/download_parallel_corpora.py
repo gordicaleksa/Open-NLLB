@@ -110,6 +110,21 @@ def convert_into_bcp47(lang_code):
 
     return lang_code
 
+
+def validate_downloaded_data(directory):
+    for corpus_name in os.listdir(directory):
+        corpus_path = os.path.join(directory, corpus_name)
+        for lang_direction in os.listdir(corpus_path):
+            lang_direction_path = os.path.join(corpus_path, lang_direction)
+            src, trg = lang_direction.split("-")
+            assert BCP47_REGEX.match(src), f"Expected {src} to be a valid BCP 47 code!"
+            assert BCP47_REGEX.match(trg), f"Expected {trg} to be a valid BCP 47 code!"
+            for file in os.listdir(lang_direction_path):
+                prefix = file.split(".")[0]
+                suffix = file.split(".")[-1]
+                assert prefix == corpus_name, f"Expected {prefix} to be {corpus_name}!"
+                assert BCP47_REGEX.match(suffix), f"Expected {suffix} to be a valid BCP 47 code!"
+
 #
 # End of helper functions
 #
@@ -141,13 +156,13 @@ def download_TIL(directory):
 
         dest_src = convert_into_bcp47(src)
         if dest_src == UNSUPPORTED_CODE:
-            print(f"{dest_src} language is unsupported! Deleting this piece of data.")
+            print(f"{src} language is unsupported! Deleting this piece of data.")
             shutil.rmtree(os.path.join(dataset_directory, pair_directory))
             continue
 
         dest_tgt = convert_into_bcp47(tgt)
         if dest_tgt == UNSUPPORTED_CODE:
-            print(f"{dest_tgt} language is unsupported! Deleting this piece of data.")
+            print(f"{tgt} language is unsupported! Deleting this piece of data.")
             shutil.rmtree(os.path.join(dataset_directory, pair_directory))
             continue
 
@@ -372,7 +387,7 @@ def download_IndicNLP(directory, non_train_datasets_path):
                     if suffix_bcp47 == UNSUPPORTED_CODE:
                         should_del_flag = True
                         break
-                    new_file_path = os.path.join(lang_direction_path, f'{corpus_name}.{suffix_bcp47}')
+                    new_file_path = os.path.join(lang_direction_path, f'{el}.{suffix_bcp47}')
                     os.rename(file_path, new_file_path)
                 if should_del_flag:
                     shutil.rmtree(lang_direction_path)
@@ -395,57 +410,45 @@ def download_Lingala_Song_Lyrics(directory):
     corpus_name = "lingala_songs"
     dataset_directory = init_routine(directory, corpus_name)
 
+    lang_code1 = 'fra_Latn'
+    lang_code2 = 'lin_Latn'
+
     download_url = "https://raw.githubusercontent.com/espoirMur/songs_lyrics_webscrap/master/data/all_data.csv"
     response = requests.get(download_url)
     if not response.ok:
         raise Exception(f"Could not download from {download_url} ... aborting for Lingala song lyrics!")
     download_path = os.path.join(dataset_directory, "all_data.csv")
-    open(download_path, "wb").write(response.content)
-    print(f"Wrote: {download_path}")
 
-    content_lines = open(download_path).readlines()
-    fr_examples = []
-    lin_examples = []
-    for pair_line in content_lines[1:]:  # first line specifies languages
-        fr, lin = pair_line.split("|")
+    def core_fn(download_path, source_file_path, target_file_path):
+        open(download_path, "wb").write(response.content)
+        print(f"Wrote: {download_path}")
 
-        # multiple spaces separate song lines within stanzas
-        fr_lines = re.sub("\s\s+", "\t", fr).split("\t")
-        lin_lines = re.sub("\s\s+", "\t", lin).split("\t")
+        content_lines = open(download_path).readlines()
+        fr_examples = []
+        lin_examples = []
+        for pair_line in content_lines[1:]:  # first line specifies languages
+            fr, lin = pair_line.split("|")
 
-        if len(fr_lines) == len(lin_lines):
-            fr_examples.extend(fr_lines)
-            lin_examples.extend(lin_lines)
-        else:
-            fr_examples.append(" ".join(fr_lines))
-            lin_examples.append(" ".join(lin_lines))
-    fr_examples = [examp.strip() for examp in fr_examples]
-    lin_examples = [examp.strip() for examp in lin_examples]
+            # multiple spaces separate song lines within stanzas
+            fr_lines = re.sub("\s\s+", "\t", fr).split("\t")
+            lin_lines = re.sub("\s\s+", "\t", lin).split("\t")
 
-    lang_code1 = 'fra_Latn'
-    lang_code2 = 'lin_Latn'
-    parent_directory_lang_direction1 = os.path.join(dataset_directory, f'{lang_code1}-{lang_code2}')
-    parent_directory_lang_direction2 = os.path.join(dataset_directory, f'{lang_code2}-{lang_code1}')
-    os.makedirs(parent_directory_lang_direction1, exist_ok=True)
-    os.makedirs(parent_directory_lang_direction2, exist_ok=True)
+            if len(fr_lines) == len(lin_lines):
+                fr_examples.extend(fr_lines)
+                lin_examples.extend(lin_lines)
+            else:
+                fr_examples.append(" ".join(fr_lines))
+                lin_examples.append(" ".join(lin_lines))
+        fr_examples = [examp.strip() for examp in fr_examples]
+        lin_examples = [examp.strip() for examp in lin_examples]
 
-    fr_filename = f"{corpus_name}.{lang_code1}"
-    fr_filepath = os.path.join(parent_directory_lang_direction1, fr_filename)
-    with open(fr_filepath, "w") as f:
-        f.write("\n".join(fr_examples))
-    print(f"Wrote: {fr_filepath}")
+        with open(source_file_path, "w") as f:
+            f.write("\n".join(fr_examples))
 
-    line_filename = f"{corpus_name}.{lang_code2}"
-    lin_filepath = os.path.join(parent_directory_lang_direction1, line_filename)
-    with open(lin_filepath, "w") as f:
-        f.write("\n".join(lin_examples))
-    print(f"Wrote: {lin_filepath}")
+        with open(target_file_path, "w") as f:
+            f.write("\n".join(lin_examples))
 
-    shutil.copyfile(fr_filepath, os.path.join(parent_directory_lang_direction2, fr_filename))
-    shutil.copyfile(lin_filepath, os.path.join(parent_directory_lang_direction2, line_filename))
-
-    os.remove(download_path)
-    print(f"Deleted: {download_path}")
+    core_fn_wrapper(core_fn, download_path, dataset_directory, corpus_name, lang_code1, lang_code2)()
 
 
 def download_FFR(directory):
@@ -456,43 +459,29 @@ def download_FFR(directory):
     corpus_name = "ffr"
     dataset_directory = init_routine(directory, corpus_name)
 
+    lang_code1 = "fon_Latn"
+    lang_code2 = "fra_Latn"
+
     download_url = "https://raw.githubusercontent.com/bonaventuredossou/ffr-v1/master/FFR-Dataset/FFR%20Dataset%20v2/ffr_dataset_v2.txt"
     response = requests.get(download_url)
     if not response.ok:
         raise Exception(f"Could not download from {download_url} ... aborting for FFR!")
     download_path = os.path.join(dataset_directory, "ffr_dataset_v2.txt")
-    open(download_path, "wb").write(response.content)
-    print(f"Wrote: {download_path}")
 
-    lang_code1 = "fra_Latn"
-    lang_code2 = "fon_Latn"
+    def core_fn(download_path, source_file_path, target_file_path):
+        open(download_path, "wb").write(response.content)
+        print(f"Wrote: {download_path}")
 
-    parent_directory_lang_direction1 = os.path.join(dataset_directory, f'{lang_code1}-{lang_code2}')
-    parent_directory_lang_direction2 = os.path.join(dataset_directory, f'{lang_code2}-{lang_code1}')
-    os.makedirs(parent_directory_lang_direction1, exist_ok=True)
-    os.makedirs(parent_directory_lang_direction2, exist_ok=True)
+        with open(download_path) as f, open(source_file_path, "w") as fon, open(
+            target_file_path, "w"
+        ) as fra:
+            for joint_line in f:
+                # one line has a tab in the French side: "A tout seigneur \t tout honneur"
+                fon_line, fra_line = joint_line.split("\t", 1)
+                fon.write(fon_line.strip() + "\n")
+                fra.write(fra_line.strip() + "\n")
 
-    fra_filename = f"{corpus_name}.{lang_code1}"
-    fon_filename = f"{corpus_name}.{lang_code2}"
-    fra_filepath = os.path.join(parent_directory_lang_direction1, fra_filename)
-    fon_filepath = os.path.join(parent_directory_lang_direction1, fon_filename)
-
-    with open(download_path) as f, open(fon_filepath, "w") as fon, open(
-        fra_filepath, "w"
-    ) as fra:
-        for joint_line in f:
-            # one line has a tab in the French side: "A tout seigneur \t tout honneur"
-            fon_line, fra_line = joint_line.split("\t", 1)
-            fon.write(fon_line.strip() + "\n")
-            fra.write(fra_line.strip() + "\n")
-    print(f"Wrote: {fon_filename}")
-    print(f"Wrote: {fra_filename}")
-
-    shutil.copyfile(fra_filepath, os.path.join(parent_directory_lang_direction2, fra_filename))
-    shutil.copyfile(fon_filepath, os.path.join(parent_directory_lang_direction2, fon_filename))
-
-    os.remove(download_path)
-    print(f"Deleted: {download_path}")
+    core_fn_wrapper(core_fn, download_path, dataset_directory, corpus_name, lang_code1, lang_code2)()
 
 
 def download_Mburisano_Covid(directory):
@@ -648,6 +637,9 @@ def download_Menyo20K(directory):
     corpus_name = "menyo20k"
     dataset_directory = init_routine(directory, corpus_name)
 
+    lang_code1 = 'eng_Latn'
+    lang_code2 = 'yor_Latn'
+
     download_url = (
         "https://raw.githubusercontent.com/uds-lsv/menyo-20k_MT/master/data/train.tsv"
     )
@@ -658,35 +650,47 @@ def download_Menyo20K(directory):
     open(download_path, "wb").write(response.content)
     print(f"Wrote: {download_path}")
 
-    lang_code1 = 'eng_Latn'
-    lang_code2 = 'yor_Latn'
-    filename1 = f"{corpus_name}.{lang_code1}"
-    filename2 = f"{corpus_name}.{lang_code2}"
-    lang_direction_path1 = os.path.join(dataset_directory, f'{lang_code1}-{lang_code2}')
-    lang_direction_path2 = os.path.join(dataset_directory, f'{lang_code2}-{lang_code1}')
-    os.makedirs(lang_direction_path1, exist_ok=True)
-    os.makedirs(lang_direction_path2, exist_ok=True)
+    def core_fn(download_path, source_file_path, target_file_path):
+        # line 0 contains language names
+        tsv_lines = open(download_path).readlines()[1:]
+        with open(source_file_path, "w") as src, open(target_file_path, "w") as tgt:
+            for line in csv.reader(tsv_lines, delimiter="\t"):
+                source_line, target_line = line
+                src.write(source_line.strip())
+                src.write("\n")
+                tgt.write(target_line.strip())
+                tgt.write("\n")
 
-    # line 0 contains language names
-    tsv_lines = open(download_path).readlines()[1:]
-    source_file_path = os.path.join(dataset_directory, lang_direction_path1, filename1)
-    target_file_path = os.path.join(dataset_directory, lang_direction_path1, filename2)
-    with open(source_file_path, "w") as src, open(target_file_path, "w") as tgt:
-        for line in csv.reader(tsv_lines, delimiter="\t"):
-            source_line, target_line = line
-            src.write(source_line.strip())
-            src.write("\n")
-            tgt.write(target_line.strip())
-            tgt.write("\n")
+    core_fn_wrapper(core_fn, download_path, dataset_directory, corpus_name, lang_code1, lang_code2)()
 
-    print(f"Wrote: {source_file_path}")
-    print(f"Wrote: {target_file_path}")
 
-    shutil.copyfile(source_file_path, os.path.join(lang_direction_path2, filename1))
-    shutil.copyfile(target_file_path, os.path.join(lang_direction_path2, filename2))
+def core_fn_wrapper(core_fn, download_path, dataset_directory, corpus_name, lang_code1, lang_code2):
+    def wrapped_func():
+        filename1 = f"{corpus_name}.{lang_code1}"
+        filename2 = f"{corpus_name}.{lang_code2}"
+        lang_direction_path1 = os.path.join(dataset_directory, f'{lang_code1}-{lang_code2}')
+        lang_direction_path2 = os.path.join(dataset_directory, f'{lang_code2}-{lang_code1}')
+        os.makedirs(lang_direction_path1, exist_ok=True)
+        os.makedirs(lang_direction_path2, exist_ok=True)
+        source_file_path = os.path.join(lang_direction_path1, filename1)
+        target_file_path = os.path.join(lang_direction_path1, filename2)
 
-    os.remove(download_path)
-    print(f"Deleted: {download_path}")
+        core_fn(download_path, source_file_path, target_file_path)
+
+        print(f"Wrote: {source_file_path}")
+        print(f"Wrote: {target_file_path}")
+
+        shutil.copyfile(source_file_path, os.path.join(lang_direction_path2, filename1))
+        shutil.copyfile(target_file_path, os.path.join(lang_direction_path2, filename2))
+
+        try:
+            if download_path:
+                os.remove(download_path)
+                print(f"Deleted: {download_path}")
+        except:
+            pass
+
+    return wrapped_func
 
 
 def download_FonFrench(directory):
@@ -708,32 +712,19 @@ def download_FonFrench(directory):
 
     lang_code1 = 'fon_Latn'
     lang_code2 = 'fra_Latn'
-    filename1 = f"{corpus_name}.{lang_code1}"
-    filename2 = f"{corpus_name}.{lang_code2}"
-    lang_direction_path1 = os.path.join(dataset_directory, f'{lang_code1}-{lang_code2}')
-    lang_direction_path2 = os.path.join(dataset_directory, f'{lang_code2}-{lang_code1}')
-    os.makedirs(lang_direction_path1, exist_ok=True)
-    os.makedirs(lang_direction_path2, exist_ok=True)
 
-    # line 0 contains language names
-    csv_lines = open(download_path).readlines()[1:]
-    source_file_path = os.path.join(dataset_directory, lang_direction_path1, filename1)
-    target_file_path = os.path.join(dataset_directory, lang_direction_path1, filename2)
-    with open(source_file_path, "w") as src, open(target_file_path, "w") as tgt:
-        for line in csv.reader(csv_lines):
-            source_line, target_line = line
-            src.write(source_line.strip())
-            src.write("\n")
-            tgt.write(target_line.strip())
-            tgt.write("\n")
-    print(f"Wrote: {source_file_path}")
-    print(f"Wrote: {target_file_path}")
+    def core_fn(download_path, source_file_path, target_file_path):
+        # line 0 contains language names
+        csv_lines = open(download_path).readlines()[1:]
+        with open(source_file_path, "w") as src, open(target_file_path, "w") as tgt:
+            for line in csv.reader(csv_lines):
+                source_line, target_line = line
+                src.write(source_line.strip())
+                src.write("\n")
+                tgt.write(target_line.strip())
+                tgt.write("\n")
 
-    shutil.copyfile(source_file_path, os.path.join(lang_direction_path2, filename1))
-    shutil.copyfile(target_file_path, os.path.join(lang_direction_path2, filename2))
-
-    os.remove(download_path)
-    print(f"Deleted: {download_path}")
+    core_fn_wrapper(core_fn, download_path, dataset_directory, corpus_name, lang_code1, lang_code2)()
 
 
 def download_FrenchEwe(directory):
@@ -753,46 +744,33 @@ def download_FrenchEwe(directory):
     open(download_path, "wb").write(response.content)
     print(f"Wrote: {download_path}")
 
-    wb = openpyxl.load_workbook(download_path)
-    french_sheet = wb["French"]
-    ewe_sheet = wb["Ewe"]
-
-    french_examples = []
-    ewe_examples = []
-    for french_row, ewe_row in zip(french_sheet.rows, ewe_sheet.rows):
-        if french_row[1].value is None or ewe_row[1].value is None:
-            continue
-        # preserve file alignment by removing newlines
-        french_sent = french_row[1].value.strip().replace("\n", " ")
-        ewe_sent = ewe_row[1].value.strip().replace("\n", " ")
-        french_examples.append(french_sent)
-        ewe_examples.append(ewe_sent)
-
     lang_code1 = 'fra_Latn'
     lang_code2 = 'ewe_Latn'
-    filename1 = f"{corpus_name}.{lang_code1}"
-    filename2 = f"{corpus_name}.{lang_code2}"
-    lang_direction_path1 = os.path.join(dataset_directory, f'{lang_code1}-{lang_code2}')
-    lang_direction_path2 = os.path.join(dataset_directory, f'{lang_code2}-{lang_code1}')
-    os.makedirs(lang_direction_path1, exist_ok=True)
-    os.makedirs(lang_direction_path2, exist_ok=True)
 
-    source_file_path = os.path.join(dataset_directory, lang_direction_path1, filename1)
-    target_file_path = os.path.join(dataset_directory, lang_direction_path1, filename2)
-    with open(source_file_path, "w") as src, open(target_file_path, "w") as tgt:
-        for fra, ewe in zip(french_examples, ewe_examples):
-            src.write(fra)
-            src.write("\n")
-            tgt.write(ewe)
-            tgt.write("\n")
-    print(f"Wrote: {source_file_path}")
-    print(f"Wrote: {target_file_path}")
+    def core_fn(download_path, source_file_path, target_file_path):
+        wb = openpyxl.load_workbook(download_path)
+        french_sheet = wb["French"]
+        ewe_sheet = wb["Ewe"]
 
-    shutil.copyfile(source_file_path, os.path.join(lang_direction_path2, filename1))
-    shutil.copyfile(target_file_path, os.path.join(lang_direction_path2, filename2))
+        french_examples = []
+        ewe_examples = []
+        for french_row, ewe_row in zip(french_sheet.rows, ewe_sheet.rows):
+            if french_row[1].value is None or ewe_row[1].value is None:
+                continue
+            # preserve file alignment by removing newlines
+            french_sent = french_row[1].value.strip().replace("\n", " ")
+            ewe_sent = ewe_row[1].value.strip().replace("\n", " ")
+            french_examples.append(french_sent)
+            ewe_examples.append(ewe_sent)
 
-    os.remove(download_path)
-    print(f"Deleted: {download_path}")
+        with open(source_file_path, "w") as src, open(target_file_path, "w") as tgt:
+            for fra, ewe in zip(french_examples, ewe_examples):
+                src.write(fra)
+                src.write("\n")
+                tgt.write(ewe)
+                tgt.write("\n")
+
+    core_fn_wrapper(core_fn, download_path, dataset_directory, corpus_name, lang_code1, lang_code2)()
 
 
 def download_Akuapem(directory):
@@ -814,32 +792,19 @@ def download_Akuapem(directory):
 
     lang_code1 = 'eng_Latn'
     lang_code2 = 'aka_Latn'
-    filename1 = f"{corpus_name}.{lang_code1}"
-    filename2 = f"{corpus_name}.{lang_code2}"
-    lang_direction_path1 = os.path.join(dataset_directory, f'{lang_code1}-{lang_code2}')
-    lang_direction_path2 = os.path.join(dataset_directory, f'{lang_code2}-{lang_code1}')
-    os.makedirs(lang_direction_path1, exist_ok=True)
-    os.makedirs(lang_direction_path2, exist_ok=True)
 
-    # line 0 contains language names
-    csv_lines = open(download_path).readlines()[1:]
-    source_file_path = os.path.join(dataset_directory, lang_direction_path1, filename1)
-    target_file_path = os.path.join(dataset_directory, lang_direction_path1, filename2)
-    with open(source_file_path, "w") as src, open(target_file_path, "w") as tgt:
-        for line in csv.reader(csv_lines):
-            source_line, target_line = line
-            src.write(source_line.strip())
-            src.write("\n")
-            tgt.write(target_line.strip())
-            tgt.write("\n")
-    print(f"Wrote: {source_file_path}")
-    print(f"Wrote: {target_file_path}")
+    def core_fn(download_path, source_file_path, target_file_path):
+        # line 0 contains language names
+        csv_lines = open(download_path).readlines()[1:]
+        with open(source_file_path, "w") as src, open(target_file_path, "w") as tgt:
+            for line in csv.reader(csv_lines):
+                source_line, target_line = line
+                src.write(source_line.strip())
+                src.write("\n")
+                tgt.write(target_line.strip())
+                tgt.write("\n")
 
-    shutil.copyfile(source_file_path, os.path.join(lang_direction_path2, filename1))
-    shutil.copyfile(target_file_path, os.path.join(lang_direction_path2, filename2))
-
-    os.remove(download_path)
-    print(f"Deleted: {download_path}")
+    core_fn_wrapper(core_fn, download_path, dataset_directory, corpus_name, lang_code1, lang_code2)()
 
 
 def download_GELR(directory):
@@ -859,79 +824,70 @@ def download_GiossaMedia(directory):
     guarani_examples = []
     spanish_examples = []
 
-    for name, download_url in [
-        (
-            "parallel_march",
-            "https://github.com/sgongora27/giossa-gongora-guarani-2021/blob/main/ParallelSet/parallel_march.zip?raw=true",
-        ),
-        (
-            "parallel_april",
-            "https://github.com/sgongora27/giossa-gongora-guarani-2021/blob/main/ParallelSet/parallel_april.zip?raw=true",
-        ),
-    ]:
-        response = requests.get(download_url)
-        if not response.ok:
-            raise Exception(f"Could not download from {download_url} ... aborting!")
-        download_path = os.path.join(dataset_directory, f"{name}.zip")
-        open(download_path, "wb").write(response.content)
-        print(f"Wrote: {download_path}")
-
-        with zipfile.ZipFile(download_path, "r") as z:
-            z.extractall(dataset_directory)
-        subset_directory = os.path.join(dataset_directory, name)
-        print(f"Extracted to: {subset_directory}")
-        os.remove(download_path)
-        print(f"Deleted: {download_path}")
-
-        for filename in os.listdir(subset_directory):
-            aligned_file = os.path.join(subset_directory, filename)
-            with open(aligned_file) as f:
-                contents = f.read()
-
-            aligned_pairs = contents.split("gn: ")
-            for pair in aligned_pairs:
-                if len(pair.strip()) == 0:
-                    continue
-                try:
-                    grn, spa = pair.split("\nes: ")
-                    grn = grn.strip().replace("\n", " ")
-                    spa = spa.strip().replace("\n", " ")
-                except:
-                    print(f"Expected pair separated by 'es: ' but got: {pair}!")
-                    import pdb
-
-                    pdb.set_trace()
-                # begins with "gn: "
-                grn = grn[4:]
-                guarani_examples.append(grn)
-                spanish_examples.append(spa)
-        shutil.rmtree(subset_directory)
-        print(f"Deleted tree: {subset_directory}")
-
-
     lang_code1 = 'grn_Latn'
     lang_code2 = 'spa_Latn'
-    filename1 = f"{corpus_name}.{lang_code1}"
-    filename2 = f"{corpus_name}.{lang_code2}"
-    lang_direction_path1 = os.path.join(dataset_directory, f'{lang_code1}-{lang_code2}')
-    lang_direction_path2 = os.path.join(dataset_directory, f'{lang_code2}-{lang_code1}')
-    os.makedirs(lang_direction_path1, exist_ok=True)
-    os.makedirs(lang_direction_path2, exist_ok=True)
 
-    guarani_file_path = os.path.join(lang_direction_path1, filename1)
-    with open(guarani_file_path, "w") as f:
-        for sent in guarani_examples:
-            f.write(sent)
-            f.write("\n")
+    def core_fn(_, source_file_path, target_file_path):
+        for name, download_url in [
+            (
+                "parallel_march",
+                "https://github.com/sgongora27/giossa-gongora-guarani-2021/blob/main/ParallelSet/parallel_march.zip?raw=true",
+            ),
+            (
+                "parallel_april",
+                "https://github.com/sgongora27/giossa-gongora-guarani-2021/blob/main/ParallelSet/parallel_april.zip?raw=true",
+            ),
+        ]:
+            response = requests.get(download_url)
+            if not response.ok:
+                raise Exception(f"Could not download from {download_url} ... aborting!")
+            download_path = os.path.join(dataset_directory, f"{name}.zip")
+            open(download_path, "wb").write(response.content)
+            print(f"Wrote: {download_path}")
 
-    spanish_file_path = os.path.join(lang_direction_path1, filename2)
-    with open(spanish_file_path, "w") as f:
-        for sent in spanish_examples:
-            f.write(sent)
-            f.write("\n")
+            with zipfile.ZipFile(download_path, "r") as z:
+                z.extractall(dataset_directory)
+            subset_directory = os.path.join(dataset_directory, name)
+            print(f"Extracted to: {subset_directory}")
+            os.remove(download_path)
+            print(f"Deleted: {download_path}")
 
-    shutil.copyfile(guarani_file_path, os.path.join(lang_direction_path2, filename1))
-    shutil.copyfile(spanish_file_path, os.path.join(lang_direction_path2, filename2))
+            for filename in os.listdir(subset_directory):
+                aligned_file = os.path.join(subset_directory, filename)
+                with open(aligned_file) as f:
+                    contents = f.read()
+
+                aligned_pairs = contents.split("gn: ")
+                for pair in aligned_pairs:
+                    if len(pair.strip()) == 0:
+                        continue
+                    try:
+                        grn, spa = pair.split("\nes: ")
+                        grn = grn.strip().replace("\n", " ")
+                        spa = spa.strip().replace("\n", " ")
+                    except:
+                        print(f"Expected pair separated by 'es: ' but got: {pair}!")
+                        import pdb
+
+                        pdb.set_trace()
+                    # begins with "gn: "
+                    grn = grn[4:]
+                    guarani_examples.append(grn)
+                    spanish_examples.append(spa)
+            shutil.rmtree(subset_directory)
+            print(f"Deleted tree: {subset_directory}")
+
+        with open(source_file_path, "w") as f:
+            for sent in guarani_examples:
+                f.write(sent)
+                f.write("\n")
+
+        with open(target_file_path, "w") as f:
+            for sent in spanish_examples:
+                f.write(sent)
+                f.write("\n")
+
+    core_fn_wrapper(core_fn, None, dataset_directory, corpus_name, lang_code1, lang_code2)()
 
 
 def download_KinyaSMT(directory):
@@ -944,66 +900,56 @@ def download_KinyaSMT(directory):
     kin_examples = []
     eng_examples = []
 
-    download_url = "https://github.com/sgongora27/giossa-gongora-guarani-2021/blob/main/ParallelSet/parallel_march.zip?raw=true"
-
-    for name, download_url in [
-        (
-            "bible.en",
-            "https://raw.githubusercontent.com/pniyongabo/kinyarwandaSMT/master/train-data/bible.en",
-        ),
-        (
-            "bible.kn",
-            "https://raw.githubusercontent.com/pniyongabo/kinyarwandaSMT/master/train-data/bible.kn",
-        ),
-        (
-            "train.en",
-            "https://raw.githubusercontent.com/pniyongabo/kinyarwandaSMT/master/train-data/train.en",
-        ),
-        (
-            "train.kn",
-            "https://raw.githubusercontent.com/pniyongabo/kinyarwandaSMT/master/train-data/train.kn",
-        ),
-    ]:
-        response = requests.get(download_url)
-        if not response.ok:
-            raise Exception(f"Could not download from {download_url} ... aborting!")
-        download_path = os.path.join(dataset_directory, f"{name}.zip")
-        open(download_path, "wb").write(response.content)
-        print(f"Wrote: {download_path}")
-
-        with open(download_path) as f:
-            if name.endswith("kn"):
-                kin_examples.extend(f.readlines())
-            else:
-                eng_examples.extend(f.readlines())
-        os.remove(download_path)
-
     lang_code1 = 'kin_Latn'
     lang_code2 = 'eng_Latn'
-    filename1 = f"{corpus_name}.{lang_code1}"
-    filename2 = f"{corpus_name}.{lang_code2}"
-    lang_direction_path1 = os.path.join(dataset_directory, f'{lang_code1}-{lang_code2}')
-    lang_direction_path2 = os.path.join(dataset_directory, f'{lang_code2}-{lang_code1}')
-    os.makedirs(lang_direction_path1, exist_ok=True)
-    os.makedirs(lang_direction_path2, exist_ok=True)
 
-    assert len(kin_examples) == len(eng_examples)
-    src_path = os.path.join(lang_direction_path1, filename1)
-    with open(src_path, "w") as f:
-        for sent in kin_examples:
-            f.write(sent.strip())
-            f.write("\n")
-    print(f"Wrote: {src_path}")
+    def core_fn(download_path, source_file_path, target_file_path):
+        download_url = "https://github.com/sgongora27/giossa-gongora-guarani-2021/blob/main/ParallelSet/parallel_march.zip?raw=true"
 
-    trg_path = os.path.join(lang_direction_path1, filename2)
-    with open(trg_path, "w") as f:
-        for sent in eng_examples:
-            f.write(sent.strip())
-            f.write("\n")
-    print(f"Wrote: {trg_path}")
+        for name, download_url in [
+            (
+                "bible.en",
+                "https://raw.githubusercontent.com/pniyongabo/kinyarwandaSMT/master/train-data/bible.en",
+            ),
+            (
+                "bible.kn",
+                "https://raw.githubusercontent.com/pniyongabo/kinyarwandaSMT/master/train-data/bible.kn",
+            ),
+            (
+                "train.en",
+                "https://raw.githubusercontent.com/pniyongabo/kinyarwandaSMT/master/train-data/train.en",
+            ),
+            (
+                "train.kn",
+                "https://raw.githubusercontent.com/pniyongabo/kinyarwandaSMT/master/train-data/train.kn",
+            ),
+        ]:
+            response = requests.get(download_url)
+            if not response.ok:
+                raise Exception(f"Could not download from {download_url} ... aborting!")
+            download_path = os.path.join(dataset_directory, f"{name}.zip")
+            open(download_path, "wb").write(response.content)
+            print(f"Wrote: {download_path}")
 
-    shutil.copyfile(src_path, os.path.join(lang_direction_path2, filename1))
-    shutil.copyfile(trg_path, os.path.join(lang_direction_path2, filename2))
+            with open(download_path) as f:
+                if name.endswith("kn"):
+                    kin_examples.extend(f.readlines())
+                else:
+                    eng_examples.extend(f.readlines())
+            os.remove(download_path)
+
+        assert len(kin_examples) == len(eng_examples)
+        with open(source_file_path, "w") as f:
+            for sent in kin_examples:
+                f.write(sent.strip())
+                f.write("\n")
+
+        with open(target_file_path, "w") as f:
+            for sent in eng_examples:
+                f.write(sent.strip())
+                f.write("\n")
+
+    core_fn_wrapper(core_fn, None, dataset_directory, corpus_name, lang_code1, lang_code2)()
 
 
 def download_translation_memories_from_Nynorsk(directory):
@@ -1019,46 +965,36 @@ def download_translation_memories_from_Nynorsk(directory):
     if not response.ok:
         raise Exception(f"Could not download from {download_url} ... aborting!")
     download_path = os.path.join(dataset_directory, f"011_2019_tm_npk_ntb.tar.gz")
-    open(download_path, "wb").write(response.content)
-    print(f"Wrote: {download_path}")
-
-    with tarfile.open(download_path) as tar:
-        tar.extractall(dataset_directory)
-    os.remove(download_path)
-    tmx_file_path = os.path.join(dataset_directory, f"2011_2019_tm_npk_ntb.tmx")
-
-    with open(tmx_file_path, "rb") as f:
-        # Norwegian Bokmal to Norwegian Nynorsk
-        tmx_data = tmxfile(f, "NB", "NN")
-    os.remove(tmx_file_path)
 
     lang_code1 = 'nob_Latn'
     lang_code2 = 'nno_Latn'
-    filename1 = f"{corpus_name}.{lang_code1}"
-    filename2 = f"{corpus_name}.{lang_code2}"
-    lang_direction_path1 = os.path.join(dataset_directory, f'{lang_code1}-{lang_code2}')
-    lang_direction_path2 = os.path.join(dataset_directory, f'{lang_code2}-{lang_code1}')
-    os.makedirs(lang_direction_path1, exist_ok=True)
-    os.makedirs(lang_direction_path2, exist_ok=True)
 
-    # Norwegian Bokmål
-    source_path = os.path.join(lang_direction_path1, filename1)
-    with open(source_path, "w") as f:
-        for node in tmx_data.unit_iter():
-            f.write(node.source)
-            f.write("\n")
-    print(f"Wrote: {source_path}")
+    def core_fn(download_path, source_file_path, target_file_path):
+        open(download_path, "wb").write(response.content)
+        print(f"Wrote: {download_path}")
 
-    # Norwegian Nynorsk
-    target_path = os.path.join(lang_direction_path1, filename2)
-    with open(target_path, "w") as f:
-        for node in tmx_data.unit_iter():
-            f.write(node.target)
-            f.write("\n")
-    print(f"Wrote: {target_path}")
+        with tarfile.open(download_path) as tar:
+            tar.extractall(dataset_directory)
+        tmx_file_path = os.path.join(dataset_directory, f"2011_2019_tm_npk_ntb.tmx")
 
-    shutil.copyfile(source_path, os.path.join(lang_direction_path2, filename1))
-    shutil.copyfile(target_path, os.path.join(lang_direction_path2, filename2))
+        with open(tmx_file_path, "rb") as f:
+            # Norwegian Bokmal to Norwegian Nynorsk
+            tmx_data = tmxfile(f, "NB", "NN")
+        os.remove(tmx_file_path)
+
+        # Norwegian Bokmål
+        with open(source_file_path, "w") as f:
+            for node in tmx_data.unit_iter():
+                f.write(node.source)
+                f.write("\n")
+
+        # Norwegian Nynorsk
+        with open(target_file_path, "w") as f:
+            for node in tmx_data.unit_iter():
+                f.write(node.target)
+                f.write("\n")
+
+    core_fn_wrapper(core_fn, download_path, dataset_directory, corpus_name, lang_code1, lang_code2)()
 
 
 def download_mukiibi(directory):
@@ -1078,33 +1014,20 @@ def download_mukiibi(directory):
 
     lang_code1 = 'eng_Latn'
     lang_code2 = 'lug_Latn'
-    filename1 = f"{corpus_name}.{lang_code1}"
-    filename2 = f"{corpus_name}.{lang_code2}"
-    lang_direction_path1 = os.path.join(dataset_directory, f'{lang_code1}-{lang_code2}')
-    lang_direction_path2 = os.path.join(dataset_directory, f'{lang_code2}-{lang_code1}')
-    os.makedirs(lang_direction_path1, exist_ok=True)
-    os.makedirs(lang_direction_path2, exist_ok=True)
 
-    # line 0 contains language names
-    tsv_lines = open(download_path).readlines()[1:]
-    source_file_path = os.path.join(lang_direction_path1, filename1)
-    target_file_path = os.path.join(lang_direction_path1, filename2)
-    with open(source_file_path, "w") as src, open(target_file_path, "w") as tgt:
-        for line in csv.reader(tsv_lines, delimiter="\t"):
-            # empty third "column" (line-ending tab)
-            source_line, target_line, _ = line
-            src.write(source_line.strip())
-            src.write("\n")
-            tgt.write(target_line.strip())
-            tgt.write("\n")
-    print(f"Wrote: {source_file_path}")
-    print(f"Wrote: {target_file_path}")
+    def core_fn(download_path, source_file_path, target_file_path):
+        # line 0 contains language names
+        tsv_lines = open(download_path).readlines()[1:]
+        with open(source_file_path, "w") as src, open(target_file_path, "w") as tgt:
+            for line in csv.reader(tsv_lines, delimiter="\t"):
+                # empty third "column" (line-ending tab)
+                source_line, target_line, _ = line
+                src.write(source_line.strip())
+                src.write("\n")
+                tgt.write(target_line.strip())
+                tgt.write("\n")
 
-    shutil.copyfile(source_file_path, os.path.join(lang_direction_path2, filename1))
-    shutil.copyfile(target_file_path, os.path.join(lang_direction_path2, filename2))
-
-    os.remove(download_path)
-    print(f"Deleted: {download_path}")
+    core_fn_wrapper(core_fn, download_path, dataset_directory, corpus_name, lang_code1, lang_code2)()
 
 
 def download_umsuka(directory):
@@ -1114,9 +1037,6 @@ def download_umsuka(directory):
     corpus_name = "umsuka"
     dataset_directory = init_routine(directory, corpus_name)
 
-    eng_examples = []
-    zul_examples = []
-
     download_url = (
         "https://zenodo.org/record/5035171/files/en-zu.training.csv?download=1"
     )
@@ -1125,39 +1045,30 @@ def download_umsuka(directory):
     if not ok:
         raise Exception("Aborting for Umsuka (isiZulu - English)!")
 
-    # line 0 contains columm names
-    with open(download_path) as f:
-        csv_lines = f.readlines()[1:]
-    for line in csv.reader(csv_lines):
-        # third column contains data source
-        source_line, target_line, _ = line
-        eng_examples.append(source_line.strip().replace("\n", " "))
-        zul_examples.append(target_line.strip().replace("\n", " "))
-    os.remove(download_path)
-    print(f"Deleted: {download_path}")
-
     lang_code1 = 'eng_Latn'
     lang_code2 = 'zul_Latn'
-    filename1 = f"{corpus_name}.{lang_code1}"
-    filename2 = f"{corpus_name}.{lang_code2}"
-    lang_direction_path1 = os.path.join(dataset_directory, f'{lang_code1}-{lang_code2}')
-    lang_direction_path2 = os.path.join(dataset_directory, f'{lang_code2}-{lang_code1}')
-    os.makedirs(lang_direction_path1, exist_ok=True)
-    os.makedirs(lang_direction_path2, exist_ok=True)
 
-    source_file_path = os.path.join(lang_direction_path1, filename1)
-    target_file_path = os.path.join(lang_direction_path1, filename2)
-    with open(source_file_path, "w") as src, open(target_file_path, "w") as tgt:
-        for eng, zul in zip(eng_examples, zul_examples):
-            src.write(eng)
-            src.write("\n")
-            tgt.write(zul)
-            tgt.write("\n")
-    print(f"Wrote: {source_file_path}")
-    print(f"Wrote: {target_file_path}")
+    def core_fn(download_path, source_file_path, target_file_path):
+        eng_examples = []
+        zul_examples = []
 
-    shutil.copyfile(source_file_path, os.path.join(lang_direction_path2, filename1))
-    shutil.copyfile(target_file_path, os.path.join(lang_direction_path2, filename2))
+        # line 0 contains columm names
+        with open(download_path) as f:
+            csv_lines = f.readlines()[1:]
+        for line in csv.reader(csv_lines):
+            # third column contains data source
+            source_line, target_line, _ = line
+            eng_examples.append(source_line.strip().replace("\n", " "))
+            zul_examples.append(target_line.strip().replace("\n", " "))
+
+        with open(source_file_path, "w") as src, open(target_file_path, "w") as tgt:
+            for eng, zul in zip(eng_examples, zul_examples):
+                src.write(eng)
+                src.write("\n")
+                tgt.write(zul)
+                tgt.write("\n")
+
+    core_fn_wrapper(core_fn, download_path, dataset_directory, corpus_name, lang_code1, lang_code2)()
 
 
 def download_CMU_Haitian_Creole(directory):
@@ -1173,28 +1084,21 @@ def download_CMU_Haitian_Creole(directory):
 
     lang_code1 = 'eng_Latn'
     lang_code2 = 'hat_Latn'
-    filename1 = f"{corpus_name}.{lang_code1}"
-    filename2 = f"{corpus_name}.{lang_code2}"
-    lang_direction_path1 = os.path.join(dataset_directory, f'{lang_code1}-{lang_code2}')
-    lang_direction_path2 = os.path.join(dataset_directory, f'{lang_code2}-{lang_code1}')
-    os.makedirs(lang_direction_path1, exist_ok=True)
-    os.makedirs(lang_direction_path2, exist_ok=True)
 
-    source_file_path = os.path.join(lang_direction_path1, filename1)
-    ok = download_file(download_url, source_file_path)
-    if not ok:
-        raise Exception("Aborting for CMU Hatian Creole!")
+    def core_fn(download_url, source_file_path, target_file_path):
+        ok = download_file(download_url, source_file_path)
+        if not ok:
+            raise Exception("Aborting for CMU Hatian Creole!")
 
-    download_url = (
-        "http://www.speech.cs.cmu.edu/haitian/text/1600_medical_domain_sentences.ht"
-    )
-    target_file_path = os.path.join(lang_direction_path1, filename2)
-    ok = download_file(download_url, target_file_path)
-    if not ok:
-        raise Exception("Aborting for CMU Hatian Creole!")
+        download_url = (
+            "http://www.speech.cs.cmu.edu/haitian/text/1600_medical_domain_sentences.ht"
+        )
+        ok = download_file(download_url, target_file_path)
+        if not ok:
+            raise Exception("Aborting for CMU Hatian Creole!")
 
-    shutil.copyfile(source_file_path, os.path.join(lang_direction_path2, filename1))
-    shutil.copyfile(target_file_path, os.path.join(lang_direction_path2, filename2))
+    core_fn_wrapper(core_fn, download_url, dataset_directory, corpus_name, lang_code1, lang_code2)()
+
 
 def download_Bianet(directory):
     """
@@ -1205,80 +1109,60 @@ def download_Bianet(directory):
     dataset_directory = init_routine(directory, corpus_name)
 
     # eng-kur
-    download_url = "https://opus.nlpl.eu/download.php?f=Bianet/v1/tmx/en-ku.tmx.gz"
-    download_path = os.path.join(dataset_directory, "en-ku.tmx.gz")
-    ok = download_file(download_url, download_path)
-    if not ok:
-        raise Exception("Aborting for Bianet!")
-    tmx_file_path = gzip_extract_and_remove(download_path)
-    with open(tmx_file_path, "rb") as f:
-        # English to Kurdish
-        tmx_data = tmxfile(f, "en", "ku")
-    os.remove(tmx_file_path)
-
     lang_code1 = 'eng_Latn'
     lang_code2 = 'kmr_Latn'
-    filename1 = f"{corpus_name}.{lang_code1}"
-    filename2 = f"{corpus_name}.{lang_code2}"
-    lang_direction_path1 = os.path.join(dataset_directory, f'{lang_code1}-{lang_code2}')
-    lang_direction_path2 = os.path.join(dataset_directory, f'{lang_code2}-{lang_code1}')
-    os.makedirs(lang_direction_path1, exist_ok=True)
-    os.makedirs(lang_direction_path2, exist_ok=True)
 
-    source_path = os.path.join(lang_direction_path1, filename1)
-    with open(source_path, "w") as f:
-        for node in tmx_data.unit_iter():
-            f.write(node.source)
-            f.write("\n")
-    print(f"Wrote: {source_path}")
+    def core_fn(_, source_file_path, target_file_path):
+        download_url = "https://opus.nlpl.eu/download.php?f=Bianet/v1/tmx/en-ku.tmx.gz"
+        download_path = os.path.join(dataset_directory, "en-ku.tmx.gz")
+        ok = download_file(download_url, download_path)
+        if not ok:
+            raise Exception("Aborting for Bianet!")
+        tmx_file_path = gzip_extract_and_remove(download_path)
+        with open(tmx_file_path, "rb") as f:
+            # English to Kurdish
+            tmx_data = tmxfile(f, "en", "ku")
+        os.remove(tmx_file_path)
 
-    target_path = os.path.join(lang_direction_path1, filename2)
-    with open(target_path, "w") as f:
-        for node in tmx_data.unit_iter():
-            f.write(node.target)
-            f.write("\n")
-    print(f"Wrote: {target_path}")
+        with open(source_file_path, "w") as f:
+            for node in tmx_data.unit_iter():
+                f.write(node.source)
+                f.write("\n")
 
-    shutil.copyfile(source_path, os.path.join(lang_direction_path2, filename1))
-    shutil.copyfile(target_path, os.path.join(lang_direction_path2, filename2))
+        with open(target_file_path, "w") as f:
+            for node in tmx_data.unit_iter():
+                f.write(node.target)
+                f.write("\n")
+
+    core_fn_wrapper(core_fn, None, dataset_directory, corpus_name, lang_code1, lang_code2)()
 
     # kur-tur
-    download_url = "https://opus.nlpl.eu/download.php?f=Bianet/v1/tmx/ku-tr.tmx.gz"
-    download_path = os.path.join(dataset_directory, "ku-tr.tmx.gz")
-    ok = download_file(download_url, download_path)
-    if not ok:
-        raise Exception("Aborting for Bianet!")
-    tmx_file_path = gzip_extract_and_remove(download_path)
-    with open(tmx_file_path, "rb") as f:
-        # English to Kurdish
-        tmx_data = tmxfile(f, "ku", "tr")
-    os.remove(tmx_file_path)
-
     lang_code1 = 'kmr_Latn'
     lang_code2 = 'tur_Latn'
-    filename1 = f"{corpus_name}.{lang_code1}"
-    filename2 = f"{corpus_name}.{lang_code2}"
-    lang_direction_path1 = os.path.join(dataset_directory, f'{lang_code1}-{lang_code2}')
-    lang_direction_path2 = os.path.join(dataset_directory, f'{lang_code2}-{lang_code1}')
-    os.makedirs(lang_direction_path1, exist_ok=True)
-    os.makedirs(lang_direction_path2, exist_ok=True)
 
-    source_path = os.path.join(lang_direction_path1, filename1)
-    with open(source_path, "w") as f:
-        for node in tmx_data.unit_iter():
-            f.write(node.source)
-            f.write("\n")
-    print(f"Wrote: {source_path}")
+    def core_fn(_, source_file_path, target_file_path):
+        download_url = "https://opus.nlpl.eu/download.php?f=Bianet/v1/tmx/ku-tr.tmx.gz"
+        download_path = os.path.join(dataset_directory, "ku-tr.tmx.gz")
+        ok = download_file(download_url, download_path)
+        if not ok:
+            raise Exception("Aborting for Bianet!")
+        tmx_file_path = gzip_extract_and_remove(download_path)
+        with open(tmx_file_path, "rb") as f:
+            # English to Kurdish
+            tmx_data = tmxfile(f, "ku", "tr")
+        os.remove(tmx_file_path)
 
-    target_path = os.path.join(lang_direction_path1, filename2)
-    with open(target_path, "w") as f:
-        for node in tmx_data.unit_iter():
-            f.write(node.target)
-            f.write("\n")
-    print(f"Wrote: {target_path}")
+        with open(source_file_path, "w") as f:
+            for node in tmx_data.unit_iter():
+                f.write(node.source)
+                f.write("\n")
 
-    shutil.copyfile(source_path, os.path.join(lang_direction_path2, filename1))
-    shutil.copyfile(target_path, os.path.join(lang_direction_path2, filename2))
+        with open(target_file_path, "w") as f:
+            for node in tmx_data.unit_iter():
+                f.write(node.target)
+                f.write("\n")
+
+    core_fn_wrapper(core_fn, None, dataset_directory, corpus_name, lang_code1, lang_code2)()
 
 
 def download_HornMT(directory):
@@ -1475,26 +1359,27 @@ if __name__ == "__main__":
     # https://sadilar.org/index.php/en/guidelines-standards/terms-of-use
     # download_Mburisano_Covid(directory)
 
-    # download_TIL(directory)
-    # download_TICO(directory)
-    # download_IndicNLP(directory, non_train_datasets_path)
-    # download_Lingala_Song_Lyrics(directory)
-    # download_FFR(directory)
-    # download_Mburisano_Covid(directory)
-    # download_XhosaNavy(directory)
-    # download_Menyo20K(directory)
-    # download_FonFrench(directory)
-    # download_FrenchEwe(directory)
-    # download_Akuapem(directory)
-    # download_GiossaMedia(directory)
-    # download_KinyaSMT(directory)
-    # download_translation_memories_from_Nynorsk(directory)
-    # download_mukiibi(directory)
-    # download_umsuka(directory)
-    # download_CMU_Haitian_Creole(directory)
-    # download_Bianet(directory)
-    # download_HornMT(directory)
-    # download_minangNLP(directory)
+    download_TIL(directory)
+    download_TICO(directory)
+    download_IndicNLP(directory, non_train_datasets_path)
+    download_Lingala_Song_Lyrics(directory)
+    download_FFR(directory)
+    download_Mburisano_Covid(directory)
+    download_XhosaNavy(directory)
+    download_Menyo20K(directory)
+    download_FonFrench(directory)
+    download_FrenchEwe(directory)
+    download_Akuapem(directory)
+    download_GiossaMedia(directory)
+    download_KinyaSMT(directory)
+    download_translation_memories_from_Nynorsk(directory)
+    download_mukiibi(directory)
+    download_umsuka(directory)
+    download_CMU_Haitian_Creole(directory)
+    download_Bianet(directory)
+    download_HornMT(directory)
+    download_minangNLP(directory)
     download_aau(directory)
 
-    # TODO(gordicaleksa): refactor the download functions to reuse some functionality
+    # Makes sure that the datasets are in the expected format (see the script header).
+    validate_downloaded_data(directory)
