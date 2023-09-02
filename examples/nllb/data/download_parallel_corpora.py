@@ -4,6 +4,19 @@
 # This source code is licensed under the license found in the
 # LICENSE file in the root directory of this source tree.
 
+#
+# The required output dataset structure of each of our download functions is:
+# {corpus_name}/
+#     bcp47_code1-bcp47_code2/
+#         {corpus_name}.bcp47_code1
+#         {corpus_name}.bcp47_code2
+#     bcp47_code3-bcp47_code4/
+#         {corpus_name}.bcp47_code3
+#         {corpus_name}.bcp47_code4
+#     ...
+# We have an expectation that each download function obeys this structure.
+#
+
 import argparse
 import csv
 import gzip
@@ -105,27 +118,17 @@ def download_TIL(directory):
         except:
             raise Exception(f"Unexpected {corpus_name} pair directory name! {pair_directory}")
 
-        dest_src = ISO_639_1_TO_ISO_639_3[src] if len(src) == 2 else src
-        if BCP47_REGEX.match(dest_src):
-            dest_src = dest_src.split("_")[0]
-        if dest_src in AMBIGUOUS_ISO_639_3_CODES:
-            raise Exception(f'Please manually decide which script is being used.')
-        if dest_src in UNSUPPORTED_LANG_CODES:
+        dest_src = convert_into_bcp47(src)
+        if dest_src == UNSUPPORTED_CODE:
             print(f"{dest_src} language is unsupported! Deleting this piece of data.")
             shutil.rmtree(os.path.join(dataset_directory, pair_directory))
             continue
-        dest_src = ISO_639_3_TO_BCP_47[dest_src][0]
 
-        dest_tgt = ISO_639_1_TO_ISO_639_3[tgt] if len(tgt) == 2 else tgt
-        if BCP47_REGEX.match(dest_tgt):
-            dest_tgt = dest_tgt.split("_")[0]
-        if dest_tgt in AMBIGUOUS_ISO_639_3_CODES:
-            raise Exception(f'Please manually decide which script is being used.')
-        if dest_tgt in UNSUPPORTED_LANG_CODES:
+        dest_tgt = convert_into_bcp47(tgt)
+        if dest_tgt == UNSUPPORTED_CODE:
             print(f"{dest_tgt} language is unsupported! Deleting this piece of data.")
             shutil.rmtree(os.path.join(dataset_directory, pair_directory))
             continue
-        dest_tgt = ISO_639_3_TO_BCP_47[dest_tgt][0]
 
         pair_directory_path = os.path.join(dataset_directory, pair_directory)
         try:
@@ -307,14 +310,15 @@ def download_TICO(directory, verbose=False):
             print(f"Deleted: {tmx_file_path}")
 
 
-def download_IndicNLP(directory):
+def download_IndicNLP(directory, non_train_datasets_path):
     """
     http://lotus.kuee.kyoto-u.ac.jp/WAT/indic-multilingual/
     Total after extraction: 3.1GB
     """
-    dataset_directory = os.path.join(directory, "indic_nlp")
+    corpus_name = "indic_nlp"
+    dataset_directory = os.path.join(directory, corpus_name)
     os.makedirs(dataset_directory, exist_ok=True)
-    print("Saving Indic NLP data to:", dataset_directory)
+    print(f"Saving {corpus_name} data to:", dataset_directory)
 
     download_url = (
         "http://lotus.kuee.kyoto-u.ac.jp/WAT/indic-multilingual/indic_wat_2021.tar.gz"
@@ -332,6 +336,34 @@ def download_IndicNLP(directory):
     os.remove(download_path)
     print(f"Deleted: {download_path}")
     print(f"Extracted to: {dataset_directory}")
+
+    # Get the dataset into the required structure:
+    nested_path = os.path.join(dataset_directory, 'finalrepo')
+    target_directory = os.path.join(non_train_datasets_path, corpus_name)
+    os.makedirs(target_directory, exist_ok=True)
+    try:
+        os.rename(os.path.join(nested_path, 'README'), os.path.join(target_directory, 'README'))
+    except:
+        pass
+    try:
+        shutil.move(os.path.join(nested_path, 'dev'), target_directory)
+    except:
+        pass
+    try:
+        shutil.move(os.path.join(nested_path, 'test'), target_directory)
+    except:
+        pass
+    train_path = os.path.join(nested_path, 'train')
+    target_directory = os.path.join(target_directory, 'train')
+    os.makedirs(target_directory, exist_ok=True)
+
+    for el in os.listdir(train_path):
+        if os.path.isdir(os.path.join(train_path, el)):
+            shutil.move(os.path.join(train_path, el), os.path.join(directory, el))
+        else:
+            shutil.move(os.path.join(train_path, el), os.path.join(target_directory, el))
+
+    shutil.rmtree(dataset_directory)
 
 
 def download_Lingala_Song_Lyrics(directory):
@@ -1252,6 +1284,9 @@ if __name__ == "__main__":
     directory = args.directory
     os.makedirs(directory, exist_ok=True)
 
+    non_train_datasets_path = os.path.join(directory, os.pardir, 'non_train_datasets')
+    os.makedirs(non_train_datasets_path, exist_ok=True)
+
     # Important:
     # By uncommenting the function below and downloading the
     # Mburisano_Covid corpus, you agree to the terms of use found here:
@@ -1259,8 +1294,8 @@ if __name__ == "__main__":
     # download_Mburisano_Covid(directory)
 
     # download_TIL(directory)
-    download_TICO(directory)
-    # download_IndicNLP(directory)
+    # download_TICO(directory)
+    download_IndicNLP(directory, non_train_datasets_path)
     # download_Lingala_Song_Lyrics(directory)
     # download_FFR(directory)
     # download_Mburisano_Covid(directory)
