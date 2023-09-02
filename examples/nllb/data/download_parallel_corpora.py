@@ -315,6 +315,7 @@ def download_TICO(directory, verbose=False):
         raise Exception("Could not download any data for TICO!")
 
 
+# TODO: map directories & files to BCP 47
 def download_IndicNLP(directory, non_train_datasets_path):
     """
     http://lotus.kuee.kyoto-u.ac.jp/WAT/indic-multilingual/
@@ -414,19 +415,19 @@ def download_Lingala_Song_Lyrics(directory):
     os.makedirs(parent_directory_lang_direction2, exist_ok=True)
 
     fr_filename = f"{corpus_name}.{lang_code1}"
-    fr_file = os.path.join(parent_directory_lang_direction1, fr_filename)
-    with open(fr_file, "w") as f:
+    fr_filepath = os.path.join(parent_directory_lang_direction1, fr_filename)
+    with open(fr_filepath, "w") as f:
         f.write("\n".join(fr_examples))
-    print(f"Wrote: {fr_file}")
+    print(f"Wrote: {fr_filepath}")
 
     line_filename = f"{corpus_name}.{lang_code2}"
-    lin_file = os.path.join(parent_directory_lang_direction1, line_filename)
-    with open(lin_file, "w") as f:
+    lin_filepath = os.path.join(parent_directory_lang_direction1, line_filename)
+    with open(lin_filepath, "w") as f:
         f.write("\n".join(lin_examples))
-    print(f"Wrote: {lin_file}")
+    print(f"Wrote: {lin_filepath}")
 
-    shutil.copyfile(fr_file, os.path.join(parent_directory_lang_direction2, fr_filename))
-    shutil.copyfile(lin_file, os.path.join(parent_directory_lang_direction2, line_filename))
+    shutil.copyfile(fr_filepath, os.path.join(parent_directory_lang_direction2, fr_filename))
+    shutil.copyfile(lin_filepath, os.path.join(parent_directory_lang_direction2, line_filename))
 
     os.remove(download_path)
     print(f"Deleted: {download_path}")
@@ -437,24 +438,34 @@ def download_FFR(directory):
     https://arxiv.org/abs/2006.09217
     https://github.com/bonaventuredossou/ffr-v1/tree/master/FFR-Dataset
     """
-    dataset_directory = os.path.join(directory, "ffr")
+    corpus_name = "ffr"
+    dataset_directory = os.path.join(directory, corpus_name)
     os.makedirs(dataset_directory, exist_ok=True)
     print("Saving FFR (Fon-French) data to:", dataset_directory)
 
     download_url = "https://raw.githubusercontent.com/bonaventuredossou/ffr-v1/master/FFR-Dataset/FFR%20Dataset%20v2/ffr_dataset_v2.txt"
     response = requests.get(download_url)
     if not response.ok:
-        print(f"Could not download from {download_url} ... aborting for FFR!")
-        return
+        raise Exception(f"Could not download from {download_url} ... aborting for FFR!")
     download_path = os.path.join(dataset_directory, "ffr_dataset_v2.txt")
     open(download_path, "wb").write(response.content)
     print(f"Wrote: {download_path}")
 
-    fon_filename = os.path.join(dataset_directory, "ffr.fon-fra.fon")
-    fra_filename = os.path.join(dataset_directory, "ffr.fon-fra.fra")
+    lang_code1 = "fra_Latn"
+    lang_code2 = "fon_Latn"
 
-    with open(download_path) as f, open(fon_filename, "w") as fon, open(
-        fra_filename, "w"
+    parent_directory_lang_direction1 = os.path.join(dataset_directory, f'{lang_code1}-{lang_code2}')
+    parent_directory_lang_direction2 = os.path.join(dataset_directory, f'{lang_code2}-{lang_code1}')
+    os.makedirs(parent_directory_lang_direction1, exist_ok=True)
+    os.makedirs(parent_directory_lang_direction2, exist_ok=True)
+
+    fra_filename = f"{corpus_name}.{lang_code1}"
+    fon_filename = f"{corpus_name}.{lang_code2}"
+    fra_filepath = os.path.join(parent_directory_lang_direction1, fra_filename)
+    fon_filepath = os.path.join(parent_directory_lang_direction1, fon_filename)
+
+    with open(download_path) as f, open(fon_filepath, "w") as fon, open(
+        fra_filepath, "w"
     ) as fra:
         for joint_line in f:
             # one line has a tab in the French side: "A tout seigneur \t tout honneur"
@@ -463,6 +474,10 @@ def download_FFR(directory):
             fra.write(fra_line.strip() + "\n")
     print(f"Wrote: {fon_filename}")
     print(f"Wrote: {fra_filename}")
+
+    shutil.copyfile(fra_filepath, os.path.join(parent_directory_lang_direction2, fra_filename))
+    shutil.copyfile(fon_filepath, os.path.join(parent_directory_lang_direction2, fon_filename))
+
     os.remove(download_path)
     print(f"Deleted: {download_path}")
 
@@ -475,7 +490,8 @@ def download_Mburisano_Covid(directory):
     print("By downloading this corpus, you agree to the terms of use found here:")
     print("https://sadilar.org/index.php/en/guidelines-standards/terms-of-use")
 
-    dataset_directory = os.path.join(directory, "mburisano")
+    corpus_name = "mburisano"
+    dataset_directory = os.path.join(directory, corpus_name)
     os.makedirs(dataset_directory, exist_ok=True)
     print("Saving Mburisano data to:", dataset_directory)
 
@@ -508,6 +524,7 @@ def download_Mburisano_Covid(directory):
         else:
             print("Does not have correct number of fields!")
             print(line)
+            continue
         data["afr"].append(afr)
         data["eng"].append(eng)
         data["nde"].append(nde)
@@ -530,22 +547,30 @@ def download_Mburisano_Covid(directory):
         ("eng", "xho"),
         ("eng", "zul"),
     ]:
-        direction_directory = os.path.join(dataset_directory, f"{source}-{target}")
+        source_bcp47 = convert_into_bcp47(source)
+        if source_bcp47 == UNSUPPORTED_CODE:
+            continue
+        target_bcp47 = convert_into_bcp47(target)
+        if target_bcp47 == UNSUPPORTED_CODE:
+            continue
+
+        direction_directory = os.path.join(dataset_directory, f"{source_bcp47}-{target_bcp47}")
         os.makedirs(direction_directory, exist_ok=True)
 
-        source_file = os.path.join(direction_directory, f"mburisano.{source}")
+        source_file = os.path.join(direction_directory, f"{corpus_name}.{source_bcp47}")
         with open(source_file, "w") as f:
             for line in data[source]:
                 f.write(line)
                 f.write("\n")
         print(f"Wrote: {source_file}")
 
-        target_file = os.path.join(direction_directory, f"mburisano.{target}")
+        target_file = os.path.join(direction_directory, f"{corpus_name}.{target_bcp47}")
         with open(target_file, "w") as f:
             for line in data[target]:
                 f.write(line)
                 f.write("\n")
         print(f"Wrote: {target_file}")
+
     os.remove(download_path)
     print(f"Deleted: {download_path}")
 
@@ -1311,9 +1336,9 @@ if __name__ == "__main__":
     # download_TIL(directory)
     # download_TICO(directory)
     # download_IndicNLP(directory, non_train_datasets_path)
-    download_Lingala_Song_Lyrics(directory)
+    # download_Lingala_Song_Lyrics(directory)
     # download_FFR(directory)
-    # download_Mburisano_Covid(directory)
+    download_Mburisano_Covid(directory)
     # download_XhosaNavy(directory)
     # download_Menyo20K(directory)
     # download_FonFrench(directory)
