@@ -656,6 +656,8 @@ ISO_639_3_TO_BCP_47 = {
 
 # TODO(gordicaleksa): ideally construct a complete table for all 202 supported langs.
 ISO_639_1_TO_ISO_639_3 = {
+    "ar" : "ara",
+    "am" : "amh",
     'or' : 'ori',
     'gu' : 'guj',
     'bn' : 'ben',
@@ -668,17 +670,38 @@ ISO_639_1_TO_ISO_639_3 = {
     'kn' : 'kan',
     'te' : 'tel',
     'fr' : 'fra',
-    "az": "aze",
-    "ba": "bak",
-    "cv": "chv",
-    "kk": "kaz",
-    "ky": "kir",
-    "ru": "rus",
-    "tk": "tuk",
-    "tr": "tur",
-    "tt": "tat",
-    "ug": "uig",
-    "uz": "uzb",
+    "az" : "aze",
+    "ba" : "bak",
+    "cv" : "chv",
+    "kk" : "kaz",
+    "ky" : "kir",
+    "ru" : "rus",
+    "tk" : "tuk",
+    "tr" : "tur",
+    "tt" : "tat",
+    "ug" : "uig",
+    "uz" : "uzb",
+    "fa" : "fas",
+    "id" : "ind",
+    "zh" : "zho",
+    "ha" : "hau",
+    "km" : "khm",
+    "lg" : "lug",
+    "ln" : "lin",
+    "ms" : "msa",
+    "my" : "mya",
+    "om" : "orm",
+    "ps" : "pus",
+    "rw" : "kin",
+    "so" : "som",
+    "tl" : "tgl",
+    "ur" : "urd",
+    "zu" : "zul",
+}
+
+LOCALIZED_TO_ISO_639_3 = {
+    "es-LA": "spa",
+    "pt-BR": "por",
 }
 
 # def build_iso_3_to_bcp_mapping():

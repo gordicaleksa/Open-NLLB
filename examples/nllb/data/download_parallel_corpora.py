@@ -28,6 +28,7 @@ translate-toolkit (pip)
 See README in local directory for important notes on usage / data coverage
 """
 
+UNSUPPORTED_CODE = -1
 
 def download_file(download_url, download_path):
     response = requests.get(download_url)
@@ -147,14 +148,47 @@ def download_TIL(directory):
         os.rename(pair_directory_path, renamed_pair_directory)
 
 
+def convert_into_bcp47(lang_code):
+    lang_code = ISO_639_1_TO_ISO_639_3[lang_code] if len(lang_code) == 2 else lang_code
+    if BCP47_REGEX.match(lang_code):
+        return lang_code
+
+    if lang_code == 'tir_ET':
+        lang_code = 'tir'
+    if lang_code == 'tir_ER':
+        lang_code = 'tir_ER'  # This will trigger the unsupported code branch.
+
+    if lang_code in AMBIGUOUS_ISO_639_3_CODES:
+        raise Exception(f'Please manually decide which script is being used.')
+    if lang_code in UNSUPPORTED_LANG_CODES:
+        print(f"{lang_code} language is unsupported! Deleting this piece of data.")
+        return UNSUPPORTED_CODE
+
+    lang_code = ISO_639_3_TO_BCP_47[lang_code][0]
+
+    return lang_code
+
+
 def download_TICO(directory, verbose=False):
     """
     https://tico-19.github.io/
     Total after extraction: 130M
     """
-    dataset_directory = os.path.join(directory, "tico")
+    corpus_name = "tico"
+    dataset_directory = os.path.join(directory, corpus_name)
     os.makedirs(dataset_directory, exist_ok=True)
-    print("Saving TICO data to:", dataset_directory)
+    print(f"Saving {corpus_name} data to:", dataset_directory)
+
+    # This is a special knowledge that can't easily be inferred
+    # because it maps from a macro-language 2 letter (ISO 639 1) code
+    # to a particular language (ISO 639 3) code within that macro-language.
+    # Not used, just for reference.
+    # dataset_specific_lang_mapping = {
+    #     "ku": "kmr",
+    #     "kr": "knc",
+    #     "ne": "npi",
+    #     "sw": "swh",
+    # }
 
     source_langs = {
         "am": "amh",
@@ -168,8 +202,9 @@ def download_TICO(directory, verbose=False):
         "ku": "kmr",
         "pt-BR": "por",
         "ru": "rus",
-        "zh": "zho",
+        "zh": "zho_Hans",  # Added Hans to remove ambiguity, their website says it's simplified Chinese.
     }
+
     target_langs = {
         "am": "amh",
         "ar": "ara",
@@ -184,7 +219,7 @@ def download_TICO(directory, verbose=False):
         "hi": "hin",
         "id": "ind",
         "km": "khm",
-        "kr": "knc",
+        "kr": "knc_Latn",  # Added Latn to remove ambiguity, I opened the data and saw it's Latn and not Arabic script.
         "ku": "kmr",
         "lg": "lug",
         "ln": "lin",
@@ -206,7 +241,7 @@ def download_TICO(directory, verbose=False):
         "ti_ER": "tir_ER",  # we combine both Tigrinya varieties
         "tl": "tgl",
         "ur": "urd",
-        "zh": "zho",
+        "zh": "zho_Hans",  # Added Hans to remove ambiguity, their website says it's simplified Chinese.
         "zu": "zul",
     }
 
@@ -223,6 +258,15 @@ def download_TICO(directory, verbose=False):
             lang2 = target_langs[target]
             if lang2 < lang1:
                 lang1, lang2 = lang2, lang1
+
+            lang1 = convert_into_bcp47(lang1)
+            if lang1 == UNSUPPORTED_CODE:
+                continue
+
+            lang2 = convert_into_bcp47(lang2)
+            if lang2 == UNSUPPORTED_CODE:
+                continue
+
             direction_directory = os.path.join(dataset_directory, f"{lang1}-{lang2}")
             os.makedirs(direction_directory, exist_ok=True)
 
@@ -240,15 +284,10 @@ def download_TICO(directory, verbose=False):
             os.remove(download_path)
             print(f"Extracted and removed: {download_path}")
 
-            # extract source and target from tmx format
-            # use 3-letter codes
-            src = source_langs[source]
-            tgt = target_langs[target]
-
             with open(tmx_file_path, "rb") as f:
                 tmx_data = tmxfile(f, source, target)
             source_path = os.path.join(
-                direction_directory, f"tico19.{lang1}-{lang2}.{src}"
+                direction_directory, f"{corpus_name}.{lang1}"
             )
             with open(source_path, "w") as f:
                 for node in tmx_data.unit_iter():
@@ -257,7 +296,7 @@ def download_TICO(directory, verbose=False):
             print(f"Wrote: {source_path}")
 
             target_path = os.path.join(
-                direction_directory, f"tico19.{lang1}-{lang2}.{tgt}"
+                direction_directory, f"{corpus_name}.{lang2}"
             )
             with open(target_path, "w") as f:
                 for node in tmx_data.unit_iter():
@@ -1219,8 +1258,8 @@ if __name__ == "__main__":
     # https://sadilar.org/index.php/en/guidelines-standards/terms-of-use
     # download_Mburisano_Covid(directory)
 
-    download_TIL(directory)
-    # download_TICO(directory)
+    # download_TIL(directory)
+    download_TICO(directory)
     # download_IndicNLP(directory)
     # download_Lingala_Song_Lyrics(directory)
     # download_FFR(directory)
