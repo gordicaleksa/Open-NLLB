@@ -1,18 +1,54 @@
 import argparse
 from collections import defaultdict
+from enum import Enum
+import gzip
 import pickle
 import os
 
 import matplotlib.pyplot as plt
 import numpy as np
+import yaml
 
-from dataset_utils import count_lines
-from lang_code_mappings import retrieve_supported_files_and_iso_639_3_codes
+from dataset_utils import count_lines, FilteringCounts, DedupFilter, DatasetLine
+from lang_code_mappings import retrieve_supported_files_and_iso_639_3_codes, ISO_639_3_TO_BCP_47
 
 
-def analyze_primary_data(args):
+class FeatureType(Enum):
+    dedup = 1
+    line_lengths = 2
+    num_sentences = 3
+
+
+UPPER_LINE_LEN_THRESHOLD = 1050
+LOWER_LINE_LEN_THRESHOLD = 5
+
+
+def compute_line_lengths(lang_code, file_path, length_factors, lang_line_lengths, verbose, is_gz):
+    print(f'Analyzing sentence lengths in {file_path}.')
+    length_factor1 = length_factors[lang_code]
+    line_lengths1 = []
+    with gzip.open(file_path, 'r') if is_gz else open(file_path, 'r') as f:
+        for i, line in enumerate(f):
+            len1 = len(line) * length_factor1
+            line_lengths1.append(len1)
+            if len1 > UPPER_LINE_LEN_THRESHOLD and verbose:
+                print(f'Found a {i+1}. line outlier with length {len1} in {file_path} above our threshold {UPPER_LINE_LEN_THRESHOLD}.')
+    lang_line_lengths[lang_code].extend(line_lengths1)
+
+
+def analyze_primary_data(args, features: list[FeatureType], langs: list[str] = None):
+    length_factors_path = args.length_factors_path
     datasets_root = args.datasets_root
     is_gz = args.is_gz
+    verbose = args.verbose
+
+    if FeatureType.dedup in features:
+        assert len(langs) == 1, 'Only one lang is supported for deduplication analysis for now.'
+
+    if FeatureType.line_lengths in features:
+        length_factors_file_path = length_factors_path
+        with open(length_factors_file_path, "rt") as fin:
+            length_factors = yaml.safe_load(fin)
 
     cnt = 0
     for root_dir, _, files in os.walk(datasets_root):
@@ -21,55 +57,107 @@ def analyze_primary_data(args):
 
     print(f'Number of lang files we found: {cnt}')
 
-    # Count number of lines for each lang
-    lang_num_sentences = defaultdict(int)
-    cnt_f = 0
-    for root_dir, _, files in os.walk(datasets_root):
-        files_and_lang_directions = retrieve_supported_files_and_iso_639_3_codes(files, is_gz)
-        for (file, lang_code) in files_and_lang_directions:
-            cnt_f += 1
-            print(f'{cnt_f}/{cnt} Counting lines in {file}.')
-            num_lines = count_lines(os.path.join(root_dir, file))
-            lang_num_sentences[lang_code] += num_lines
-
-    print(f'Found {len(lang_num_sentences)} langs out of 202.')
-    with open('lang_num_sentences.pickle', 'wb') as handle:
-        pickle.dump(lang_num_sentences, handle, protocol=pickle.HIGHEST_PROTOCOL)
-
-    # Count number of lines for each lang direction.
+    #
+    # Step 1: data collection
+    #
+    lang_num_sentences_dict = defaultdict(int)
     lang_direction_num_sentences = defaultdict(int)
+    lang_line_lengths_dict = defaultdict(list)
+    cnt_pairs = 0
+    duplicates_cnt = 0
     for root_dir, _, files in os.walk(datasets_root):
         files_and_lang_directions = retrieve_supported_files_and_iso_639_3_codes(files, is_gz)
         if len(files_and_lang_directions) == 0:
             continue
+        assert len(files_and_lang_directions) % 2 == 0, f'Found {len(files_and_lang_directions)} files in {root_dir}. Expected an even number of files.'
+        for i in range(0, len(files_and_lang_directions), 2):
+            file1, lang_code1 = files_and_lang_directions[i]
+            file2, lang_code2 = files_and_lang_directions[i+1]
+            lang_code1 = ISO_639_3_TO_BCP_47[lang_code1][0]
+            lang_code2 = ISO_639_3_TO_BCP_47[lang_code2][0]
+            file_path1 = os.path.join(root_dir, file1)
+            file_path2 = os.path.join(root_dir, file2)
 
-        assert len(files_and_lang_directions) == 2, f'Found {len(files_and_lang_directions)} files in {root_dir}.'
+            dataset_counts = FilteringCounts()  # filtering counts for the current dataset
+            fltr = DedupFilter(dedup_pairs=True, max_source_dedup=None, max_target_dedup=None)
 
-        file_0, lang_code_0 = files_and_lang_directions[0]
-        file_1, lang_code_1 = files_and_lang_directions[1]
+            cnt_pairs += 1
+            if FeatureType.num_sentences in features:
+                print(f'{cnt_pairs*2}/{cnt} Counting lines in {file1} and {file2}.')
+                lang_num_sentences_dict[lang_code1] += count_lines(file_path1)
+                lang_num_sentences_dict[lang_code2] += count_lines(file_path2)
+                lang_direction_num_sentences[f'{lang_code1}-{lang_code2}'] += count_lines(file_path1)
+            if FeatureType.line_lengths in features:
+                if lang_code1 in langs:
+                    compute_line_lengths(lang_code1, file_path1, length_factors, lang_line_lengths_dict, verbose, is_gz)
 
-        num_lines_0 = count_lines(os.path.join(root_dir, file_0))
-        num_lines_1 = count_lines(os.path.join(root_dir, file_1))
+                if lang_code2 in langs:
+                    compute_line_lengths(lang_code2, file_path2, length_factors, lang_line_lengths_dict, verbose, is_gz)
 
-        if num_lines_0 != num_lines_1:
-            print(f'Number of lines in {file_0} and {file_1} do not match.')
-            continue
+            if FeatureType.dedup in features:
+                if lang_code1 in langs or lang_code2 in langs:
+                    with gzip.open(file_path1, 'r') if is_gz else open(file_path1, 'r') as f, gzip.open(file_path2, 'r') if is_gz else open(file_path2, 'r') as g:
+                        for i, (line1, line2) in enumerate(zip(f, g)):
+                            if is_gz:
+                                # Convert from bytes to string
+                                line1 = line1.decode('utf-8')
+                                line2 = line2.decode('utf-8')
+                            line = DatasetLine(src=line1, tgt=line2)
+                            dataset_counts.total_before += 1
+                            line = fltr.filter_line(line, dataset_counts)
+                            if line is None:
+                                continue
+                            dataset_counts.total_after += 1
 
-        # Note: We could also count the other direction.
-        key = f'{lang_code_0}-{lang_code_1}'
-        lang_direction_num_sentences[key] += num_lines_0
+                    duplicates_cnt += dataset_counts.pair_dedup
+                    print(f'Found {dataset_counts.pair_dedup} duplicates for {root_dir}.')
 
-    print(f'Found {len(lang_direction_num_sentences)} lang directions.')
+    if FeatureType.dedup in features:
+        assert len(langs) == 1, 'Only one lang is supported for deduplication analysis for now.'
+        print(f'Found {duplicates_cnt} duplicates for {langs[0]}.')
 
-    # Plot the histogram
-    # Plot log values otherwise we won't see the data for most langs.
-    log_values = np.log(list(lang_direction_num_sentences.values()))
-    plt.bar(lang_direction_num_sentences.keys(), log_values)
-    plt.xticks(rotation=90)
-    plt.show()
+    if FeatureType.num_sentences in features:
+        print(f'Found {len(lang_num_sentences_dict)} langs out of 202.')
+        print(f'Found {sum(lang_num_sentences_dict.values())} sentences.')
+        print(f'Found {len(lang_direction_num_sentences)} lang directions.')
+        with open('lang_num_sentences.pickle', 'wb') as handle:
+            pickle.dump(lang_num_sentences_dict, handle, protocol=pickle.HIGHEST_PROTOCOL)
+
+    #
+    # Step 2: Visualize & analyze the information collected above
+    #
+    if FeatureType.line_lengths in features:
+        for lang in lang_line_lengths_dict.keys():
+            line_lengths = np.array(lang_line_lengths_dict[lang])
+            k = 10
+            ind = np.argpartition(line_lengths, -k)[-k:]
+            print(f'max {k} elements = {line_lengths[ind]} avg = {np.average(line_lengths)}')
+
+            num_outliers = sum(np.logical_or(line_lengths > UPPER_LINE_LEN_THRESHOLD, line_lengths < LOWER_LINE_LEN_THRESHOLD))
+            num_outliers_relative = num_outliers / len(line_lengths)
+            print(f'Found {num_outliers} sentence length outliers ({num_outliers_relative}%) in {lang}.')
+            # Compute a numpy histogram
+            hist, bin_edges = np.histogram(line_lengths, bins=500)
+            # Compute the bin centers
+            bin_centers = 0.5 * (bin_edges[:-1] + bin_edges[1:])
+            # Plot the histogram in matplotlib
+            plt.plot(bin_centers, hist, label=lang)
+            plt.legend()
+            plt.show()
+            plt.close()
+
+    if FeatureType.num_sentences in features:
+        for lang_dict in [lang_num_sentences_dict, lang_direction_num_sentences]:
+            log_values = np.log(list(lang_dict.values()))
+            plt.bar(lang_dict.keys(), log_values)
+            plt.xticks(rotation=90)
+            plt.show()
+            print('ok')
 
 
 def analyze_dumps():
+    # Run analyze_primary_data with raw & filtered data.
+    # Then run this function and compare the pickles to see the difference in number of sentences.
     with open("lang_num_sentences.pickle", 'rb') as handle:
         dict1 = pickle.load(handle)
     with open("lang_num_sentences_filtered.pickle", 'rb') as handle:
@@ -87,19 +175,8 @@ def analyze_dumps():
     plt.show()
     print('ok')
 
+
 if __name__ == '__main__':
-    #
-    # Note: expects that you've already run the `modify_datasets_structure.py` script.
-    # The datasets should have the following structure:
-    #   - datasets_root
-    #       - dataset_name
-    #           - lang_code_1-lang_code_2
-    #               - data_file.lang_code_1
-    #               - data_file.lang_code_2
-    #           - lang_code_3-lang_code_4
-    #               - data_file.lang_code_3
-    #               - data_file.lang_code_4
-    #
     parser = argparse.ArgumentParser(
         "Script to analyze certain statistics of the primary data."
     )
@@ -112,13 +189,13 @@ if __name__ == '__main__':
     )
     parser.add_argument("--is_gz", action="store_true",
 					help="set this flag if your files are gzipped (will be the case for output of the filtering stage)")
+    parser.add_argument("--verbose", action="store_true",
+					help="set this to True to get more information")
     parser.add_argument(
-        "--extended_langs_path",
-        "-p",
+        "--length_factors_path",
         type=str,
-        required=True,
-        help="extended list of 202 639_3 ISO codes + some macro-language codes.",
+        help="Path to the length factors file (created in the stopes repo).",
     )
     args = parser.parse_args()
-    analyze_primary_data(args)
-    analyze_dumps()
+    analyze_primary_data(args, [FeatureType.num_sentences, FeatureType.dedup, FeatureType.line_lengths], langs=['spa_Latn'])  # ,'ory_Latn', 'hin_Deva', 'spa_Latn', 'grn_Latn', 'fra_Latn', 'fon_Latn'
+    # analyze_dumps()

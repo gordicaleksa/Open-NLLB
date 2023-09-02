@@ -6,7 +6,8 @@
 2. Run the `modify_datasets_structure.py --datasets_root $DOWNLOAD_DIRECTORY` script (where $DOWNLOAD_DIRECTORY is the same directory as what you used with `download_parallel_corpora.py`)
 3. Use stopes to filter & prepare data (see the rest of the original README)
 
-If you want to analyze number of lines of bi-text for each of the languages in the primary dataset check out the `analyse_data.py` script.
+If you want to analyze number of lines of bi-text for each of the languages in the primary dataset check out the `analyse_data.py` script. Also number of lang directions, line lengths histograms, number of duplicates, etc. It's the go-to
+place for our dataset analysis!
 
 ### Primary Datasets
 

@@ -150,11 +150,12 @@ def main(cfg: FairseqConfig) -> None:
     # Load valid dataset (we load training data below, based on the latest checkpoint)
     # We load the valid dataset AFTER building the model
     data_utils.raise_if_valid_subsets_unintentionally_ignored(cfg)
-    if cfg.dataset.combine_valid_subsets:
-        task.load_dataset("valid", combine=True, epoch=1)
-    else:
-        for valid_sub_split in cfg.dataset.valid_subset.split(","):
-            task.load_dataset(valid_sub_split, combine=False, epoch=1)
+    if not cfg.dataset.disable_validation:
+        if cfg.dataset.combine_valid_subsets:
+            task.load_dataset("valid", combine=True, epoch=1)
+        else:
+            for valid_sub_split in cfg.dataset.valid_subset.split(","):
+                task.load_dataset(valid_sub_split, combine=False, epoch=1)
 
     # (optionally) Configure quantization
     if cfg.common.quantization_config_path is not None:
