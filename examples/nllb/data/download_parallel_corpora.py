@@ -248,6 +248,7 @@ def download_TICO(directory, verbose=False):
         "zu": "zul",
     }
 
+    flag_all_failed = True
     for source in source_langs:
         for target in target_langs:
             url = f"https://tico-19.github.io/data/TM/all.{source}-{target}.tmx.zip"
@@ -257,6 +258,7 @@ def download_TICO(directory, verbose=False):
                     print("Could not download data for {source}-{target}! Skipping...")
                 continue
 
+            flag_all_failed = False
             lang1 = source_langs[source]
             lang2 = target_langs[target]
             if lang2 < lang1:
@@ -309,6 +311,9 @@ def download_TICO(directory, verbose=False):
             os.remove(tmx_file_path)
             print(f"Deleted: {tmx_file_path}")
 
+    if flag_all_failed:
+        raise Exception("Could not download any data for TICO!")
+
 
 def download_IndicNLP(directory, non_train_datasets_path):
     """
@@ -325,8 +330,7 @@ def download_IndicNLP(directory, non_train_datasets_path):
     )
     response = requests.get(download_url)
     if not response.ok:
-        print(f"Could not download from {download_url} ... aborting for Indic NLP!")
-        return
+        raise Exception(f"Could not download from {download_url} ... aborting for Indic NLP!")
     download_path = os.path.join(dataset_directory, "indic_wat_2021.tar.gz")
     open(download_path, "wb").write(response.content)
     print(f"Wrote: {download_path}")
@@ -370,17 +374,15 @@ def download_Lingala_Song_Lyrics(directory):
     """
     https://github.com/espoirMur/songs_lyrics_webscrap
     """
-    dataset_directory = os.path.join(directory, "lingala_songs")
+    corpus_name = "lingala_songs"
+    dataset_directory = os.path.join(directory, corpus_name)
     os.makedirs(dataset_directory, exist_ok=True)
-    print("Saving Lingala song lyric data to:", dataset_directory)
+    print(f"Saving {corpus_name} lyric data to:", dataset_directory)
 
     download_url = "https://raw.githubusercontent.com/espoirMur/songs_lyrics_webscrap/master/data/all_data.csv"
     response = requests.get(download_url)
     if not response.ok:
-        print(
-            f"Could not download from {download_url} ... aborting for Lingala song lyrics!"
-        )
-        return
+        raise Exception(f"Could not download from {download_url} ... aborting for Lingala song lyrics!")
     download_path = os.path.join(dataset_directory, "all_data.csv")
     open(download_path, "wb").write(response.content)
     print(f"Wrote: {download_path}")
@@ -404,15 +406,28 @@ def download_Lingala_Song_Lyrics(directory):
     fr_examples = [examp.strip() for examp in fr_examples]
     lin_examples = [examp.strip() for examp in lin_examples]
 
-    fr_file = os.path.join(dataset_directory, "songs.fr-lin.fr")
+    lang_code1 = 'fra_Latn'
+    lang_code2 = 'lin_Latn'
+    parent_directory_lang_direction1 = os.path.join(dataset_directory, f'{lang_code1}-{lang_code2}')
+    parent_directory_lang_direction2 = os.path.join(dataset_directory, f'{lang_code2}-{lang_code1}')
+    os.makedirs(parent_directory_lang_direction1, exist_ok=True)
+    os.makedirs(parent_directory_lang_direction2, exist_ok=True)
+
+    fr_filename = f"{corpus_name}.{lang_code1}"
+    fr_file = os.path.join(parent_directory_lang_direction1, fr_filename)
     with open(fr_file, "w") as f:
         f.write("\n".join(fr_examples))
     print(f"Wrote: {fr_file}")
 
-    lin_file = os.path.join(dataset_directory, "songs.fr-lin.lin")
+    line_filename = f"{corpus_name}.{lang_code2}"
+    lin_file = os.path.join(parent_directory_lang_direction1, line_filename)
     with open(lin_file, "w") as f:
         f.write("\n".join(lin_examples))
     print(f"Wrote: {lin_file}")
+
+    shutil.copyfile(fr_file, os.path.join(parent_directory_lang_direction2, fr_filename))
+    shutil.copyfile(lin_file, os.path.join(parent_directory_lang_direction2, line_filename))
+
     os.remove(download_path)
     print(f"Deleted: {download_path}")
 
@@ -1295,8 +1310,8 @@ if __name__ == "__main__":
 
     # download_TIL(directory)
     # download_TICO(directory)
-    download_IndicNLP(directory, non_train_datasets_path)
-    # download_Lingala_Song_Lyrics(directory)
+    # download_IndicNLP(directory, non_train_datasets_path)
+    download_Lingala_Song_Lyrics(directory)
     # download_FFR(directory)
     # download_Mburisano_Covid(directory)
     # download_XhosaNavy(directory)
