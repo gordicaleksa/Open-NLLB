@@ -1,12 +1,12 @@
+"""
+This script has been deprecated use download_parallel_corpora.py instead.
+"""
 import argparse
 import os
 import re
 import shutil
 
 from lang_code_mappings import BCP47_REGEX, UNSUPPORTED_LANG_CODES, AMBIGUOUS_ISO_639_3_CODES, ISO_639_1_TO_ISO_639_3, ISO_639_3_TO_BCP_47, SUPPORTED_BCP_47_CODES, retrieve_supported_files_and_iso_639_3_codes
-
-
-# TODO(gordicaleksa): Should we add both directions for each language pair? I do that for "flat" datasets. I.e. datasets whose structure is "datasetname/lang_files" with no intermediate directory.
 
 # Notes:
 # I've modified ISO_639_3_TO_BCP_47 and added new language mappings from macro-language to specific language (making assumptions for the given datasets we currently have)
@@ -193,22 +193,25 @@ def map_all_lang_codes_to_bcp47(args):
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(
-        "Script to prepare the datasets even before running stopes library."
-    )
-    parser.add_argument(
-        "--datasets_root",
-        "-d",
-        type=str,
-        required=True,
-        help="Root directory where download_parallel_corpora.py downloaded the data.",
-    )
-    args = parser.parse_args()
-    non_train_datasets_path = os.path.join(args.datasets_root, os.pardir, 'non_train_datasets')
-    args.non_train_datasets_path = non_train_datasets_path
+    # NOTE: this script has been deprecated use download_parallel_corpora.py instead.
+    # Leaving it here in case we need this logic for later.
+    pass
+    # parser = argparse.ArgumentParser(
+    #     "Script to prepare the datasets even before running stopes library."
+    # )
+    # parser.add_argument(
+    #     "--datasets_root",
+    #     "-d",
+    #     type=str,
+    #     required=True,
+    #     help="Root directory where download_parallel_corpora.py downloaded the data.",
+    # )
+    # args = parser.parse_args()
+    # non_train_datasets_path = os.path.join(args.datasets_root, os.pardir, 'non_train_datasets')
+    # args.non_train_datasets_path = non_train_datasets_path
 
-    os.makedirs(args.datasets_root, exist_ok=True)
-    os.makedirs(non_train_datasets_path, exist_ok=True)
+    # os.makedirs(args.datasets_root, exist_ok=True)
+    # os.makedirs(non_train_datasets_path, exist_ok=True)
 
-    shoehorn_datasets_into_regular_structure(args)
-    map_all_lang_codes_to_bcp47(args)
+    # shoehorn_datasets_into_regular_structure(args)
+    # map_all_lang_codes_to_bcp47(args)

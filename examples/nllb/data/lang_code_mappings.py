@@ -9,6 +9,10 @@ UNSUPPORTED_LANG_CODES = ['slr', 'kum', 'sah', 'alt', 'tyv', 'kaa', 'kjh', 'cjs'
 # These codes contain 2 possible scripts
 AMBIGUOUS_ISO_639_3_CODES = ['ace', 'bjn', 'kas', 'knc', 'taq', 'zho']
 
+# These are some additional mappings I added manually after analyzing the data to ISO_639_3_TO_BCP_47.
+# Most of these are macro-langs and we make an assumption about which specific langs they map to.
+# tir_ET', 'pus', 'orm', 'gag', 'ara', 'ori', 'aze', 'msa', 'uzb', 'din', 'kur', 'fas'
+
 # Constructed using the `build_iso_3_to_bcp_mapping` function below.
 ISO_639_3_TO_BCP_47 = {
     "ace": [
@@ -141,7 +145,7 @@ ISO_639_3_TO_BCP_47 = {
     "deu": [
         "deu_Latn"
     ],
-    # Manually added after analyzing tico dataset using fasttext model (https://huggingface.co/facebook/fasttext-language-identification)
+    # Manually added after analyzing tico dataset using fasttext model (https://huggingface.co/facebook/fasttext-language-identification), din stands for Dinka macro-language.
     "din": [
         "dik_Latn"
     ],
@@ -175,7 +179,7 @@ ISO_639_3_TO_BCP_47 = {
     "fao": [
         "fao_Latn"
     ],
-    # Manually added after analyzing tico dataset and seeing they have "fas" and "prs", thus I concluded that "fas" is actually "pes"
+    # Manually added after analyzing tico dataset and seeing they have "fas" and "prs", thus I concluded that "fas" is actually "pes".
     "fas": [
         "pes_Arab"
     ],
@@ -313,7 +317,7 @@ ISO_639_3_TO_BCP_47 = {
     "kor": [
         "kor_Hang"
     ],
-    # Manually added after analyzing bianet dataset and seeing Latn script (thus concluding it's Northern Kurdish)
+    # Manually added after analyzing bianet dataset and seeing Latn script (thus concluding it's Northern Kurdish).
     "kur": [
         "kmr_Latn"
     ],
@@ -440,7 +444,7 @@ ISO_639_3_TO_BCP_47 = {
     "gaz": [
         "gaz_Latn"
     ],
-    # Manually added as we assume we only have ory_Orya, ori is a macro-lang (has 2 langs).
+    # Manually added as we assume we only have ory_Orya (Odia), ori is a macro-lang (has 2 langs).
     "ori": [
         "ory_Orya"
     ],
@@ -568,6 +572,7 @@ ISO_639_3_TO_BCP_47 = {
     "tha": [
         "tha_Thai"
     ],
+    # Not an ISO 639-3 code per se but we need this mapping.
     "tir_ET": [
         "tir_Ethi"
     ],

@@ -1387,6 +1387,9 @@ if __name__ == "__main__":
     # https://sadilar.org/index.php/en/guidelines-standards/terms-of-use
     # download_Mburisano_Covid(directory)
 
+    # TODO(gordicaleksa): Should we add both directions for each language pair?
+    # I do that for "flat" datasets. i.e. datasets whose structure is "datasetname/lang_files"
+    # with no intermediate directory - but we're not consistent.
     download_TIL(directory)
     download_TICO(directory)
     download_IndicNLP(directory, non_train_datasets_path)
