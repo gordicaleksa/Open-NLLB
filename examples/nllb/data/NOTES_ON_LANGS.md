@@ -32,3 +32,19 @@ TODO: We need people who are native in the following languages to assist:
 * Odia (mtenglish2odia dataset)
 
 Note: `extended_langs.txt` contains the BCP 47 codes of the original 202 NLLB languages + some macro-lang codes that helps us not filter certain files out when they have a macro lang code as an infix or suffix.
+
+## Line length analysis of the primary dataset
+
+Some outliers languages from our primary corpus that I caught by doing line length analysis:
+
+* Very weird choppy patterns looking at line length histogram: `afr_Latn`, `ssw_Latn`, `tso_Latn`, `tsn_Latn`, `sot_Latn` (all part of the same dataset - `mburisano`).
+
+* Choppy pattern: `aka_Latn`, `mri_Latn`, `ban_Latn`, `kas_Arab`, `taq_Latn`, `mag_Deva`, `bjn_Arab`, `arz_Arab`, `ary_Arab`, `tzm_Tfng`, `mni_Beng`, `hne_Deva`, `bug_Latn`, `lmo_Latn`, `bho_Deva`, `lim_Latn`, `ewe_Latn`, `fon_Latn`, `hat_Latn` (most of these are part of the same n-way parallel corpus in NLLB-Seed).
+
+* Big outliers 10k+ line lengths: `eng_Latn`, `tur_Latn`, `uzn_Latn`, `rus_Cyrl`, `mal_Mlym`, `tam_Taml`, `mar_Deva`, `ben_Beng`, `tel_Telu`, `pan_Guru`, `kan_Knda`, `tuk_Latn`.
+
+By analyzing them manually I found these 2 outliers that stick out even more:
+* `afr_Latn` -> super small corpus, only 238 sentences (same for other langs in that dataset...`ssw`, `tso`, `tsn`, `sot`)
+* `fon_Latn` (in `ffr` dataset) -> many single word sentences.
+
+Datasets most impacted by line length outliers are: `wikimatrix`, `jw`, `til`. Wikimatrix is basically mined data so that makes sense, I'm not sure about the other two.

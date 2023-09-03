@@ -746,6 +746,7 @@ def retrieve_supported_files_and_iso_639_3_codes(files, is_gz=False):
     for file in files:
         lang_code_suffix = file.split('.')[-2] if is_gz else file.split('.')[-1]
         if lang_code_suffix in UNSUPPORTED_LANG_CODES:
+            print(f'Unsupported language code {lang_code_suffix}.')
             continue
         if file in EXTENDED_SUPPORTED_ISO_639_3_CODES_AND_SCRIPTS:
             raise Exception(f'Legacy - we should never hit this branch.')
@@ -758,7 +759,7 @@ def retrieve_supported_files_and_iso_639_3_codes(files, is_gz=False):
         elif lang_code_suffix in SUPPORTED_ISO_639_1_CODES:
             new_files_and_iso_639_3_codes.append((file, ISO_639_1_TO_ISO_639_3[lang_code_suffix]))
         else:
-            print(f'Skipping {file}.')
+            print(f'Skipping {file} - not a language file.')
 
     return new_files_and_iso_639_3_codes
 

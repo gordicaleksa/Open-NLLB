@@ -3,6 +3,7 @@ from collections import defaultdict
 from enum import Enum
 import gzip
 import pickle
+import pathlib
 import os
 
 import matplotlib.pyplot as plt
@@ -22,6 +23,7 @@ class FeatureType(Enum):
 UPPER_LINE_LEN_THRESHOLD = 1050
 LOWER_LINE_LEN_THRESHOLD = 5
 
+outlier_datasets = defaultdict(int)
 
 def compute_line_lengths(lang_code, file_path, length_factors, lang_line_lengths, verbose, is_gz):
     print(f'Analyzing sentence lengths in {file_path}.')
@@ -31,8 +33,9 @@ def compute_line_lengths(lang_code, file_path, length_factors, lang_line_lengths
         for i, line in enumerate(f):
             len1 = len(line) * length_factor1
             line_lengths1.append(len1)
-            if len1 > UPPER_LINE_LEN_THRESHOLD and verbose:
-                print(f'Found a {i+1}. line outlier with length {len1} in {file_path} above our threshold {UPPER_LINE_LEN_THRESHOLD}.')
+            if (LOWER_LINE_LEN_THRESHOLD < len1 < UPPER_LINE_LEN_THRESHOLD) and verbose:
+                outlier_datasets[pathlib.Path(file_path).parent.parent.name] += 1
+                print(f'Found a {i+1}. line outlier with length {len1} in {pathlib.Path(file_path).parent.parent.name} above our threshold {UPPER_LINE_LEN_THRESHOLD}.')
     lang_line_lengths[lang_code].extend(line_lengths1)
 
 
@@ -88,10 +91,10 @@ def analyze_primary_data(args, features: list[FeatureType], langs: list[str] = N
                 lang_num_sentences_dict[lang_code2] += count_lines(file_path2)
                 lang_direction_num_sentences[f'{lang_code1}-{lang_code2}'] += count_lines(file_path1)
             if FeatureType.line_lengths in features:
-                if lang_code1 in langs:
+                if langs is None or lang_code1 in langs:
                     compute_line_lengths(lang_code1, file_path1, length_factors, lang_line_lengths_dict, verbose, is_gz)
 
-                if lang_code2 in langs:
+                if langs is None or lang_code2 in langs:
                     compute_line_lengths(lang_code2, file_path2, length_factors, lang_line_lengths_dict, verbose, is_gz)
 
             if FeatureType.dedup in features:
@@ -127,6 +130,7 @@ def analyze_primary_data(args, features: list[FeatureType], langs: list[str] = N
     # Step 2: Visualize & analyze the information collected above
     #
     if FeatureType.line_lengths in features:
+        print(f'Datasets containing length outliers: {outlier_datasets}')
         for lang in lang_line_lengths_dict.keys():
             line_lengths = np.array(lang_line_lengths_dict[lang])
             k = 10
@@ -149,6 +153,8 @@ def analyze_primary_data(args, features: list[FeatureType], langs: list[str] = N
     if FeatureType.num_sentences in features:
         for lang_dict in [lang_num_sentences_dict, lang_direction_num_sentences]:
             log_values = np.log(list(lang_dict.values()))
+            keys_log_values = sorted(zip(lang_dict.keys(), log_values), key=lambda x: x[1], reverse=True)
+            print(f'Top 10: {keys_log_values[:10]}')
             plt.bar(lang_dict.keys(), log_values)
             plt.xticks(rotation=90)
             plt.show()
@@ -197,5 +203,5 @@ if __name__ == '__main__':
         help="Path to the length factors file (created in the stopes repo).",
     )
     args = parser.parse_args()
-    analyze_primary_data(args, [FeatureType.num_sentences, FeatureType.dedup, FeatureType.line_lengths], langs=['spa_Latn'])  # ,'ory_Latn', 'hin_Deva', 'spa_Latn', 'grn_Latn', 'fra_Latn', 'fon_Latn'
+    analyze_primary_data(args, [FeatureType.num_sentences, FeatureType.line_lengths], langs=None)  # ,'ory_Latn', 'hin_Deva', 'spa_Latn', 'grn_Latn', 'fra_Latn', 'fon_Latn'
     # analyze_dumps()
