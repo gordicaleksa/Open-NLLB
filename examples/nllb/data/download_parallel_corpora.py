@@ -1362,6 +1362,68 @@ def download_NLLBSeed(directory):
             os.rename(os.path.join(root_dir, filename), os.path.join(root_dir, new_filename))
 
 
+#
+# Evaluation datasets.
+#
+def download_NLLBMD(directory):
+    """
+    https://github.com/facebookresearch/flores/blob/main/nllb_md/README.md
+    """
+    # TODO: see what format we want for our eval datasets.
+    corpus_name = "NLLB-MD"
+    dataset_directory = init_routine(directory, corpus_name)
+
+    download_urls = (
+        "https://tinyurl.com/NLLBMDchat",
+        "https://tinyurl.com/NLLBMDnews",
+        "https://tinyurl.com/NLLBMDhealth"
+    )
+    for download_url in download_urls:
+        response = requests.get(download_url)
+        if not response.ok:
+            raise Exception(f"Could not download from {download_url} ... aborting for NLLB Seed!")
+        download_path = os.path.join(dataset_directory, f"{download_url.split('/')[-1]}.zip")
+        open(download_path, "wb").write(response.content)
+        print(f"Wrote: {download_path}")
+
+        with zipfile.ZipFile(download_path, "r") as z:
+            z.extractall(directory)
+        os.remove(download_path)
+
+
+def download_Flores202(directory):
+    """
+    https://github.com/facebookresearch/flores/blob/main/flores200/README.md
+    """
+    corpus_name = "Flores202"
+    dataset_directory = init_routine(directory, corpus_name)
+
+    download_url = (
+        "https://tinyurl.com/flores200dataset"
+    )
+    response = requests.get(download_url)
+    if not response.ok:
+        raise Exception(f"Could not download from {download_url} ... aborting for NLLB Seed!")
+    download_path = os.path.join(dataset_directory, f"{corpus_name}.tar.gz")
+    open(download_path, "wb").write(response.content)
+    print(f"Wrote: {download_path}")
+
+    with tarfile.open(download_path) as tar:
+        tar.extractall(dataset_directory)
+    os.remove(download_path)
+
+
+# Eval datasets links (8 public benchmarks) + Flores 202 above are used for evaluation in the paper:
+# https://github.com/facebookresearch/flores/raw/master/data/flores_test_sets.tgz <-flores v1
+# https://docs.google.com/forms/d/e/1FAIpQLSfQqhxslVSkBN5ScQ2bvvM0xUVCUnjXxtvkAjupvxm3SSeZGw/viewform <- MADAR, we have to sign a form (found it here: https://camel.abudhabi.nyu.edu/madar-parallel-corpus/)
+# https://huggingface.co/datasets/autshumato/blob/main/autshumato.py <- autshumato dataset
+# https://huggingface.co/datasets/masakhane/mafand/blob/main/mafand.py and https://github.com/masakhane-io/lafand-mt/tree/main/data/json_files <- Mafand
+# https://huggingface.co/datasets/iwslt2017/blob/main/iwslt2017.py <- IWSLT 2017, the paper say this was their test set (depending on the language they pick a different version/year)
+# For WMT - similar thing as for IWSLT, depending on the lang they pick a different version (https://huggingface.co/datasets/wmt19)
+# check out table 55 & table 56 in the paper
+# WAT https://lotus.kuee.kyoto-u.ac.jp/WAT/WAT2019/ <- struggling to find the actual dataset, the answer is somewhere in there
+# They used TICO for eval as well but not sure what's the split?
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         "Script to download individual public corpora for NLLB"
@@ -1415,3 +1477,7 @@ if __name__ == "__main__":
 
     # Makes sure that the datasets are in the expected format (see the script header).
     validate_downloaded_data(directory)
+
+    # Evaluation datasets
+    # download_NLLBMD(directory)
+    # download_Flores202(directory)

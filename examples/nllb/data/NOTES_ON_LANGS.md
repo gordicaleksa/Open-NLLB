@@ -48,3 +48,11 @@ By analyzing them manually I found these 2 outliers that stick out even more:
 * `fon_Latn` (in `ffr` dataset) -> many single word sentences.
 
 Datasets most impacted by line length outliers are: `wikimatrix`, `jw`, `til`. Wikimatrix is basically mined data so that makes sense, I'm not sure about the other two.
+
+## Duplicates analysis
+
+The languages the most impacted by duplicates filtering in the filtering pipeline are:
+* `ory_Latn`, `hin_Deva`, `spa_Latn`, `grn_Latn`, `fra_Latn`, `fon_Latn`
+
+The datasets that are the most impacted by duplicates are:
+* `til`, `iitb`, `jw`, `opensubtitles`
