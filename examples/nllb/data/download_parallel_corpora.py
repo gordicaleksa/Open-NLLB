@@ -1334,6 +1334,34 @@ def download_aau(directory):
         raise Exception("Aborting for AAU!")
 
 
+def download_NLLBSeed(directory):
+    """
+    https://github.com/facebookresearch/flores/tree/main/nllb_seed
+    """
+    corpus_name = "NLLB-Seed"
+    dataset_directory = init_routine(directory, corpus_name)
+
+    download_url = (
+        "https://tinyurl.com/NLLBSeed"
+    )
+    response = requests.get(download_url)
+    if not response.ok:
+        raise Exception(f"Could not download from {download_url} ... aborting for NLLB Seed!")
+    download_path = os.path.join(dataset_directory, "NLLB-Seed.zip")
+    open(download_path, "wb").write(response.content)
+    print(f"Wrote: {download_path}")
+
+    with zipfile.ZipFile(download_path, "r") as z:
+        z.extractall(directory)
+    os.remove(download_path)
+
+    for root_dir, _, files in os.walk(dataset_directory):
+        for filename in files:
+            assert BCP47_REGEX.match(filename), f"Expected BCP47 filename but got: {filename}!"
+            new_filename = f'{corpus_name}.{filename}'
+            os.rename(os.path.join(root_dir, filename), os.path.join(root_dir, new_filename))
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         "Script to download individual public corpora for NLLB"
@@ -1380,6 +1408,7 @@ if __name__ == "__main__":
     download_HornMT(directory)
     download_minangNLP(directory)
     download_aau(directory)
+    download_NLLBSeed(directory)
 
     # Makes sure that the datasets are in the expected format (see the script header).
     validate_downloaded_data(directory)
