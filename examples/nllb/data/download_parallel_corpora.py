@@ -1391,12 +1391,13 @@ def download_NLLBMD(directory):
         os.remove(download_path)
 
 
-def download_Flores202(directory):
+def download_Flores202(directory, eval_directions: list[str]):
     """
     https://github.com/facebookresearch/flores/blob/main/flores200/README.md
     """
-    corpus_name = "Flores202"
+    corpus_name = "flores202"
     dataset_directory = init_routine(directory, corpus_name)
+    assert all([BCP47_REGEX.match(direction) for direction in eval_directions]), f"Expected BCP47 direction but got: {eval_directions}!"
 
     download_url = (
         "https://tinyurl.com/flores200dataset"
@@ -1411,6 +1412,54 @@ def download_Flores202(directory):
     with tarfile.open(download_path) as tar:
         tar.extractall(dataset_directory)
     os.remove(download_path)
+
+    dataset_path = os.path.join(dataset_directory, "flores200_dataset")
+    os.remove(os.path.join(dataset_path, "README"))
+    os.remove(os.path.join(dataset_path, "metadata_dev.tsv"))
+    os.remove(os.path.join(dataset_path, "metadata_devtest.tsv"))
+
+    dev_path = os.path.join(dataset_path, "dev")
+    devtest_path = os.path.join(dataset_path, "devtest")
+
+    for direction in eval_directions:
+        src, trg = direction.split("-")
+
+        src_path_dev = os.path.join(dev_path, f"{src}.dev")
+        trg_path_dev = os.path.join(dev_path, f"{trg}.dev")
+        dev_direction_path = os.path.join(dev_path, f"{src}-{trg}")
+        os.makedirs(dev_direction_path, exist_ok=True)
+        shutil.copy(src_path_dev, os.path.join(dev_direction_path, f"{corpus_name}.{src}"))
+        shutil.copy(trg_path_dev, os.path.join(dev_direction_path, f"{corpus_name}.{trg}"))
+
+        src_path_devtest = os.path.join(devtest_path, f"{src}.devtest")
+        trg_path_devtest = os.path.join(devtest_path, f"{trg}.devtest")
+        devtest_direction_path = os.path.join(devtest_path, f"{src}-{trg}")
+        os.makedirs(devtest_direction_path, exist_ok=True)
+        shutil.copy(src_path_devtest, os.path.join(devtest_direction_path, f"{corpus_name}.{src}"))
+        shutil.copy(trg_path_devtest, os.path.join(devtest_direction_path, f"{corpus_name}.{trg}"))
+
+    # Delete files directly under dev and devtest directories (but keep the directories)
+    for el in os.listdir(dev_path):
+        el_path = os.path.join(dev_path, el)
+        if os.path.isfile(el_path):
+            os.remove(el_path)
+
+    for el in os.listdir(devtest_path):
+        el_path = os.path.join(devtest_path, el)
+        if os.path.isfile(el_path):
+            os.remove(el_path)
+
+    # Rename dev and devtest to flores202_dev and flores202_devtest
+    new_dev_path = os.path.join(dataset_path, "flores202_dev")
+    new_devtest_path = os.path.join(dataset_path, "flores202_devtest")
+    os.rename(dev_path, new_dev_path)
+    os.rename(devtest_path, new_devtest_path)
+
+    # Move them up to the root
+    shutil.move(new_dev_path, directory)
+    shutil.move(new_devtest_path, directory)
+    # Remove dataset_path
+    shutil.rmtree(dataset_directory)
 
 
 # Eval datasets links (8 public benchmarks) + Flores 202 above are used for evaluation in the paper:
@@ -1435,12 +1484,21 @@ if __name__ == "__main__":
         required=True,
         help="directory to save downloaded data",
     )
+    parser.add_argument(
+        "--eval_datasets_path",
+        "-e",
+        type=str,
+        required=True,
+        help="directory to save downloaded data",
+    )
     args = parser.parse_args()
 
     directory = args.directory
-    os.makedirs(directory, exist_ok=True)
-
     non_train_datasets_path = os.path.join(directory, os.pardir, 'non_train_datasets')
+    eval_datasets_path = args.eval_datasets_path
+
+    os.makedirs(directory, exist_ok=True)
+    os.makedirs(eval_datasets_path, exist_ok=True)
     os.makedirs(non_train_datasets_path, exist_ok=True)
 
     # Important:
@@ -1479,5 +1537,5 @@ if __name__ == "__main__":
     validate_downloaded_data(directory)
 
     # Evaluation datasets
-    # download_NLLBMD(directory)
-    # download_Flores202(directory)
+    # download_NLLBMD(eval_datasets_path)
+    download_Flores202(eval_datasets_path, ["eng_Latn-rus_Cyrl", "tur_Latn-uzn_Latn"])

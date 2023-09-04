@@ -34,7 +34,7 @@ def compute_line_lengths(lang_code, file_path, length_factors, lang_line_lengths
         for i, line in enumerate(f):
             len1 = len(line) * length_factor1
             line_lengths1.append(len1)
-            if (LOWER_LINE_LEN_THRESHOLD < len1 < UPPER_LINE_LEN_THRESHOLD) and verbose:
+            if not (LOWER_LINE_LEN_THRESHOLD < len1 < UPPER_LINE_LEN_THRESHOLD) and verbose:
                 outlier_datasets[pathlib.Path(file_path).parent.parent.name] += 1
                 print(f'Found a {i+1}. line outlier with length {len1} in {pathlib.Path(file_path).parent.parent.name} above our threshold {UPPER_LINE_LEN_THRESHOLD}.')
     lang_line_lengths[lang_code].extend(line_lengths1)
@@ -74,6 +74,7 @@ def analyze_primary_data(args, features: list[FeatureType], langs: list[str] = N
         assert len(files_and_lang_directions) % 2 == 0, f'Found {len(files_and_lang_directions)} files in {root_dir}. Expected an even number of files.'
         for i in range(0, len(files_and_lang_directions), 2):
             corpus_name = pathlib.Path(root_dir).parent.name
+            lang_direction = pathlib.Path(root_dir).name
             file1, lang_code1 = files_and_lang_directions[i]
             file2, lang_code2 = files_and_lang_directions[i+1]
             lang_code1 = ISO_639_3_TO_BCP_47[lang_code1][0]
@@ -89,7 +90,7 @@ def analyze_primary_data(args, features: list[FeatureType], langs: list[str] = N
                 print(f'{cnt_pairs*2}/{cnt} Counting lines in {file1} and {file2}.')
                 lang_num_sentences_dict[lang_code1] += count_lines(file_path1)
                 lang_num_sentences_dict[lang_code2] += count_lines(file_path2)
-                lang_direction_num_sentences[f'{lang_code1}-{lang_code2}'] += count_lines(file_path1)
+                lang_direction_num_sentences[lang_direction] += count_lines(file_path1)
             if FeatureType.line_lengths in features:
                 if langs is None or lang_code1 in langs:
                     compute_line_lengths(lang_code1, file_path1, length_factors, lang_line_lengths_dict, verbose, is_gz)
@@ -113,7 +114,7 @@ def analyze_primary_data(args, features: list[FeatureType], langs: list[str] = N
                             dataset_counts.total_after += 1
 
                     duplicates_cnt += dataset_counts.pair_dedup
-                    duplicates_dict[corpus_name][f'{lang_code1}-{lang_code2}'] += dataset_counts.pair_dedup
+                    duplicates_dict[corpus_name][lang_direction] += dataset_counts.pair_dedup
                     print(f'Found {dataset_counts.pair_dedup} duplicates for {root_dir}.')
 
     if FeatureType.dedup in features:
