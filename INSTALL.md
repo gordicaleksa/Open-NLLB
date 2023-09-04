@@ -7,6 +7,11 @@ pip install torch==1.10.1+cu113 torchvision==0.11.2+cu113 torchaudio==0.10.1+cu1
 ```
 ## Install Apex
 
+### Install the required CUDA and compiler dependencies with `conda`
+```bash
+conda install cudatoolkit-dev=11.3 gxx=10.3 cuda-nvcc=11.3 -c conda-forge -c nvidia
+```
+
 ```bash
 git clone https://github.com/NVIDIA/apex.git
 cd apex
