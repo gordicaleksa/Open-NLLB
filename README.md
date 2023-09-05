@@ -11,10 +11,7 @@ Join [Aleksa Gordić - The AI Epiphany](https://discord.gg/peBrCpheKE) Discord s
 
 ## Language champions
 
-Here is a list of contributors who are owners of their respective languages (they are all native speakers).
-
-TODO: add people here
-* ...
+[Here is a list](https://docs.google.com/document/d/1myp6qZImAdAKBQS0-V6DgcLb7wGMnSMvV92cLvDOJbw) of data contributors who are owners of their respective languages (they are all native speakers).
 
 Below is the original fairseq README:
 
