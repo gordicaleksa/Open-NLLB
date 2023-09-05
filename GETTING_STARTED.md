@@ -3,11 +3,11 @@
 There are 5 different components to Open-NLLB system, and thus 5 different areas where you could potentially contribute! Each of these contributions is equally important to us! ⭐
 
 They are:
-1. [Data collection, sourcing, verification](#data-collection-sourcing-verification)
-2. [Dataset formatting](#dataset-formatting)
-3. [Filtering](#filtering)
-4. [Data preparation](#data-preparation)
-5. [Model training](#model-training)
+1. [Data collection, sourcing, verification](#1-data-collection-sourcing-verification)
+2. [Dataset formatting](#2-dataset-formatting)
+3. [Filtering](#3-filtering)
+4. [Data preparation](#4-data-preparation)
+5. [Model training](#5-model-training)
 
 For some of these you don't even need to setup the Python environment.
 
@@ -35,7 +35,7 @@ If you're willing to become the owner for your native language - please sign up!
 
 Tasks:
 * You can find the list of prepared language-specific data tasks in [that same language champions document](https://docs.google.com/document/d/1myp6qZImAdAKBQS0-V6DgcLb7wGMnSMvV92cLvDOJbw).
-* If you want to take this one step further and directly go through the public/mined data that we have, please check out the next section [data formatting](#data-formatting).
+* If you want to take this one step further and directly go through the public/mined data that we have, please check out the next section [data formatting](#2-data-formatting).
 
 ⭐ People who contribute across any of these sub-areas will be clearly **credited** in our main README file!
 
@@ -60,7 +60,8 @@ Check out [this README](https://github.com/gordicaleksa/Open-NLLB-stopes/tree/nl
 
 TL;DR: the high-level workflow is the following:
 * Run the `download_parallel_corpora.py` script which downloads our primary bi-text and formats it.
-* After you have this data run the filtering pipeline that uses various heuristics like line length based filtering and pairwise deduplication to filter out lower quality bi-text.
+* Run 3 different Python scripts (see the README above for more details) to create all of the necessary filtering config files.
+* After you have this data and configs run the filtering pipeline that uses various heuristics like line length based filtering and pairwise deduplication to filter out lower quality bi-text.
 * With the filtered data ready you can then proceed to the next stage (data preparation).
 
 ## 4. Data preparation
@@ -71,8 +72,8 @@ Check out [this README](https://github.com/gordicaleksa/Open-NLLB-stopes/tree/nl
 
 TL;DR: the high-level workflow is the following:
 1. (Optional) Run the filtering stage - data preparation can also work directly on "raw" bi-text (i.e. w/o filtering)
-2. Run 3 Python scripts (see the README above for more details) to create data preparation config files.
-3. Modify `prepare_data.yaml` config to setup the data preparation stage linking to the configs from the previous step.
+2. Run the `prepare_extra_configs.py` to create data preparation config file.
+3. Modify `prepare_data.yaml` config to setup the data preparation stage linking to the config from the previous step.
 4. The data preparation stage will then do the following:
     - Validation checks - makes sure that all bi-text source/target files have the same number of lines.
     - Concatenates the data from all the datasets for a particular language direction (e.g. `eng_Latn-rus_Cyrl` might exist in datasets `A`, `B`, and `C` and so we concat all 3 of those files into a final one).

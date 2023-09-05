@@ -120,6 +120,10 @@ ENV/
 
 # data
 data-bin/
+examples/nllb/data/non_train_datasets/
+examples/nllb/data/train_datasets/
+examples/nllb/data/eval_datasets/
+model_checkpoints
 
 # reranking
 /examples/reranking/rerank_data
@@ -143,3 +147,5 @@ wandb/
 nohup.out
 multirun
 outputs
+
+# data
