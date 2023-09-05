@@ -1,5 +1,6 @@
 # If you only wish to run download_parallel_corpora.py
 openpyxl
+requests
 gsutil
 translate-toolkit
 
