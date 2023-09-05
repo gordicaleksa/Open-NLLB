@@ -1,12 +1,13 @@
 # No Language Left Behind : Data
 
-### STEP BY STEP TUTORIAL TO PREPARE THE DATA BY GORDICALEKSA
+### Steps to download, format, & analyze the data (TL;DR)
 
-1. Run the `download_parallel_corpora.py` script (see below). It will download all primary data + NLLB Seed (but will not download the 3 datasets mentioned below which require logging in, etc.) and prepare them so that they satisfy a common directory/file structure (see the header of the script for more info).
-2. Use stopes to filter & prepare data (see the rest of the original README)
+1. Make sure you have a Python (e.g. conda) environment with the packages from `requirements.txt`.
+2. Run the `download_parallel_corpora.py` script (find the instructions below). It will download all primary data + NLLB Seed (but will not download the 3 datasets mentioned below which require logging in, etc.) and prepare them so that they satisfy a common directory/file structure (see the header of the `download_parallel_corpora.py` script for more info).
+3. (Optional - advanced) If you wish to analyze the data for each of the languages in the primary dataset check out the `analyse_data.py` script.
+4. (Optional - advanced) Check out some notes we compiled by manually analyzing the datasets available for download from our `download_parallel_corpora.py` script [here](examples/nllb/data/NOTES_ON_LANGS.md).
 
-If you want to analyze number of lines of bi-text for each of the languages in the primary dataset check out the `analyse_data.py` script. Also number of lang directions, line lengths histograms, number of duplicates, etc. It's the go-to
-place for our dataset analysis!
+You can find more information down below.
 
 ### Primary Datasets
 

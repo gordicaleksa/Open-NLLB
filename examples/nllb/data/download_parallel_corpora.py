@@ -1488,7 +1488,7 @@ if __name__ == "__main__":
         "--eval_datasets_path",
         "-e",
         type=str,
-        required=True,
+        required=False,
         help="directory to save downloaded data",
     )
     args = parser.parse_args()
@@ -1498,7 +1498,8 @@ if __name__ == "__main__":
     eval_datasets_path = args.eval_datasets_path
 
     os.makedirs(directory, exist_ok=True)
-    os.makedirs(eval_datasets_path, exist_ok=True)
+    if eval_datasets_path:
+        os.makedirs(eval_datasets_path, exist_ok=True)
     os.makedirs(non_train_datasets_path, exist_ok=True)
 
     # Important:
@@ -1536,6 +1537,7 @@ if __name__ == "__main__":
     # Makes sure that the datasets are in the expected format (see the script header).
     validate_downloaded_data(directory)
 
-    # Evaluation datasets
-    # download_NLLBMD(eval_datasets_path)
-    download_Flores202(eval_datasets_path, ["eng_Latn-rus_Cyrl", "tur_Latn-uzn_Latn"])
+    if eval_datasets_path:
+        # Evaluation datasets
+        # download_NLLBMD(eval_datasets_path)
+        download_Flores202(eval_datasets_path, ["eng_Latn-rus_Cyrl", "tur_Latn-uzn_Latn"])
