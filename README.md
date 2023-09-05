@@ -13,6 +13,10 @@ Join [Aleksa Gordić - The AI Epiphany](https://discord.gg/peBrCpheKE) Discord s
 
 [Here is a list](https://docs.google.com/document/d/1myp6qZImAdAKBQS0-V6DgcLb7wGMnSMvV92cLvDOJbw) of data contributors who are owners of their respective languages (they are all native speakers).
 
+## Getting started
+
+Check out our [getting started guide](GETTING_STARTED.md) if you wish to contribute!
+
 Below is the original fairseq README:
 
 ## No Language Left Behind

@@ -22,12 +22,12 @@ import csv
 import gzip
 import os
 import re
+import requests
 import shutil
 import tarfile
 import zipfile
 
 import openpyxl
-import requests
 from translate.storage.tmx import tmxfile
 
 from lang_code_mappings import BCP47_REGEX, UNSUPPORTED_LANG_CODES, ISO_639_1_TO_ISO_639_3, ISO_639_3_TO_BCP_47, AMBIGUOUS_ISO_639_3_CODES
