@@ -1,21 +1,21 @@
 ![No Language Left Behind](nllb.png?raw=true "NLLB")
 
-# OPEN NLLB effort
+# OPEN NLLB effort 🦜
 
 The main goal of this effort is to release truly **open-source** NLLB checkpoints that can be freely used
 even for commercial purposes. Meta released their checkpoints under non-commercial CC-NC-BY 4.0 license.
 
-Join [Aleksa Gordić - The AI Epiphany](https://discord.gg/peBrCpheKE) Discord server and the #meta-nllb-replication channel if you want to engage with the rest of the community.
+👨‍👩‍👧‍👦 Join [Aleksa Gordić - The AI Epiphany](https://discord.gg/peBrCpheKE) Discord server and the [#open-nllb](https://discord.gg/59DZDWgR5a) channel if you want to engage with the rest of the community!
 
-[Daily YouTube video streams here](https://www.youtube.com/@TheAIEpiphany).
+📺 [Daily YouTube video streams here](https://www.youtube.com/@TheAIEpiphany)! 👀
+
+## Getting started 🚀
+
+Check out our [getting started guide](GETTING_STARTED.md) if you wish to contribute! Or just play around!
 
 ## Language champions
 
-[Here is a list](https://docs.google.com/document/d/1myp6qZImAdAKBQS0-V6DgcLb7wGMnSMvV92cLvDOJbw) of data contributors who are owners of their respective languages (they are all native speakers).
-
-## Getting started
-
-Check out our [getting started guide](GETTING_STARTED.md) if you wish to contribute!
+[Here is a list](https://docs.google.com/document/d/1myp6qZImAdAKBQS0-V6DgcLb7wGMnSMvV92cLvDOJbw) of data contributors who are owners of their respective languages (they are all native speakers). 🙏
 
 Below is the original fairseq README:
 
