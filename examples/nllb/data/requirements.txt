@@ -1,3 +1,11 @@
+# If you only wish to run download_parallel_corpora.py
 openpyxl
 gsutil
 translate-toolkit
+
+# For analyze and other scripts
+xxhash
+matplotlib
+numpy
+yaml
+datasets
