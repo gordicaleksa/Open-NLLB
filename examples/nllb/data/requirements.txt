@@ -1,0 +1,3 @@
+openpyxl
+gsutil
+translate-toolkit
