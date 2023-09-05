@@ -99,7 +99,7 @@ def analyze_primary_data(args, features: list[FeatureType], langs: list[str] = N
                     compute_line_lengths(lang_code2, file_path2, length_factors, lang_line_lengths_dict, verbose, is_gz)
 
             if FeatureType.dedup in features:
-                if langs is None or (lang_code1 in langs or lang_code2 in langs):
+                if langs is None or (lang_code1 in langs and lang_code2 in langs):  # pairwise dedup hence and operator.
                     with gzip.open(file_path1, 'r') if is_gz else open(file_path1, 'r') as f, gzip.open(file_path2, 'r') if is_gz else open(file_path2, 'r') as g:
                         for i, (line1, line2) in enumerate(zip(f, g)):
                             if is_gz:
