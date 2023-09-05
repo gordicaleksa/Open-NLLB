@@ -58,36 +58,77 @@ There is a couple of sub-tasks where you could help:
 
 Check out [this README](https://github.com/gordicaleksa/Open-NLLB-stopes/tree/nllb_replication/stopes/pipelines/filtering) for more information on how to run the filtering stage.
 
-TL;DR: the workflow is the following:
+TL;DR: the high-level workflow is the following:
 * Run the `download_parallel_corpora.py` script which downloads our primary bi-text and formats it.
 * After you have this data run the filtering pipeline that uses various heuristics like line length based filtering and pairwise deduplication to filter out lower quality bi-text.
 * With the filtered data ready you can then proceed to the next stage (data preparation).
 
 ## 4. Data preparation
 
-Setup: Install the [Open-NLLB-stopes](https://github.com/gordicaleksa/Open-NLLB-stopes) project.
-[Follow these INSTALL]() instructions to build the environment that you can also use for Open-NLLB-stopes.
+**Setup:** Install the [Open-NLLB-stopes](https://github.com/gordicaleksa/Open-NLLB-stopes) project. Just [follow these INSTALL instructions](INSTALL.md) to build the Python environment that you can also then re-use for Open-NLLB.
 
-Check out [this README](https://github.com/gordicaleksa/Open-NLLB-stopes/tree/nllb_replication/stopes/pipelines/prepare_data) for more information.
+Check out [this README](https://github.com/gordicaleksa/Open-NLLB-stopes/tree/nllb_replication/stopes/pipelines/prepare_data) for more information on how to run the data preparation stage.
 
-TL;DR: the workflow is the following:
-* You run the `prepare_extra_configs.py` to create the `train_corpora.yaml` config file that contains the paths to the filtered data from the previous stage.
-* Modify `prepare_data.yaml` config to setup the stage.
-* The stage itself will first do some validation checks (make sure all bi-text source/target files have the same number of lines), next up it will concatenate all the data from all the corpora for a particular language direction (e.g. `eng_Latn-rus_Cyrl` meaning English with a Latin script to Russian with a Cyrillic script). After that
-it will do additional deduplication across the language directions + shard the files into smaller pieces.
-At the very end it will binarize those textual files (applying the SPM-200 tokenizer).
+TL;DR: the high-level workflow is the following:
+1. (Optional) Run the filtering stage - data preparation can also work directly on "raw" bi-text (i.e. w/o filtering)
+2. Run 3 Python scripts (see the README above for more details) to create data preparation config files.
+3. Modify `prepare_data.yaml` config to setup the data preparation stage linking to the configs from the previous step.
+4. The data preparation stage will then do the following:
+    - Validation checks - makes sure that all bi-text source/target files have the same number of lines.
+    - Concatenates the data from all the datasets for a particular language direction (e.g. `eng_Latn-rus_Cyrl` might exist in datasets `A`, `B`, and `C` and so we concat all 3 of those files into a final one).
+    - Deduplicates across all language directions and then shards the language direction files into smaller pieces.
+    - Binarizes the shards using the pre-trained `SPM-200` tokenizer.
 
 ## 5. Model training
 
-Setup: Setup: Install the [Open-NLLB](https://github.com/gordicaleksa/Open-NLLB) project.
-[Follow these INSTALL]() instructions to build the environment that you can also use for Open-NLLB-stopes.
+**Setup:** Install the [Open-NLLB](https://github.com/gordicaleksa/Open-NLLB) project. Just [follow these INSTALL instructions](INSTALL.md) to build the Python environment that you can also then re-use for Open-NLLB-stopes.
 
-For local runs (non-slurm runs) you need to run the [`train.py`](fairseq_cli/train.py) use this [config]() as the starting point.
+*Note: if you've already run the setup for any of the previous two stages you don't need to do this.*
 
-I got that config by running the `train_script.py` following this README and extracting the necessary settings,
-then tracing the code path and ending at `train.py` which ultimately gets called (whether you run this locally or on a slurm cluster).
+To run the training you have 2 options:
+1. (Better for local runs) For local runs (non-slurm runs) you can run the [`train.py`](fairseq_cli/train.py) directly just use the config provided below as the starting point / reference.
 
-Also check out [this README](/home/aleksa/Projects/nllb/fairseq/fairseq_cli/README.md) for more information.
+Context: I got that config by running the [`train_script.py`](examples/nllb/modeling/train/train_script.py) following [its README](examples/nllb/modeling/README.md) and then extracting the settings that that script passes on to `train.py` (I just traced out the code path that led to it).
 
+2. (Better when running on slurm) Run [`train_script.py`](examples/nllb/modeling/train/train_script.py) and follow [its README](examples/nllb/modeling/README.md) to get started.
+
+Also check out [this README](/home/aleksa/Projects/nllb/fairseq/fairseq_cli/README.md) for more information (on how to setup Weights & Biases, etc.).
+
+The reference train config:
+```
+    "--distributed-world-size", "2", "/home/aleksa/Projects/nllb/stopes/stopes/pipelines/prepare_data/processed_data/data_bin/shard000:/home/aleksa/Projects/nllb/stopes/stopes/pipelines/prepare_data/processed_data/data_bin/shard001",
+    "--save-dir", "/home/aleksa/Projects/nllb/fairseq/model_checkpoints/save_dir",
+    // "--tensorboard-logdir", "/home/aleksa/Projects/nllb/fairseq/model_checkpoints/tb/tb_log",
+    "--skip-invalid-size-inputs-valid-test", "--memory-efficient-fp16", "--max-update", "100000",
+    "--update-freq", "1", "--task", "translation_multi_simple_epoch", "--lang-pairs", "eng_Latn-spa_Latn,eng_Latn-rus_Cyrl,tur_Latn-rus_Cyrl",
+    "--use-local-shard-size", "--sampling-method", "temperature", "--sampling-temperature", "1",
+    "--adam-eps", "1e-06", "--adam-betas", "(0.9, 0.98)", "--lr-scheduler", "inverse_sqrt",
+    "--warmup-init-lr", "1e-07", "--warmup-updates", "500", "--lr", "5e-05", "--stop-min-lr", "1e-09",
+    "--clip-norm", "0.0", "--dropout", "0", "--weight-decay", "0.0",
+    "--criterion", "label_smoothed_cross_entropy", "--label-smoothing", "0.1",
+    "--best-checkpoint-metric", "nll_loss", "--max-tokens", "2048", "--seed", "2", "--log-format", "json",
+    "--log-interval", "100", "--validate-interval-updates", "500", // "--valid-subset", "valid",
+    "--keep-interval-updates", "1", "--keep-last-epochs", "1", "--validate-interval", "1000",
+    "--max-source-positions", "512", "--max-target-positions", "512", "--enable-m2m-validation",
+    "--add-data-source-prefix-tags", "--share-all-embeddings", "--decoder-normalize-before",
+    "--encoder-normalize-before", "--optimizer", "adam", "--fp16-adam-stats", "--min-params-to-wrap",
+    "100000000", "--ddp-backend", "fully_sharded", "--replication-count", "1", "--encoder-langtok", "src",
+    "--decoder-langtok", "--langs", "/home/aleksa/Projects/nllb/fairseq/examples/nllb/modeling/scripts/flores200/langs.txt",
+    "--save-interval-updates", "1000", "--save-interval", "1000", "--arch", "transformer", "--encoder-layers", "12",
+    "--decoder-layers", "12", "--encoder-ffn-embed-dim", "4096", "--decoder-ffn-embed-dim", "4096", "--encoder-embed-dim",
+    "1024", "--decoder-embed-dim", "1024", "--encoder-attention-heads", "16", "--decoder-attention-heads", "16",
+    "--attention-dropout", "0.1", "--relu-dropout", "0.0", "--train-subset", "train",
+    "--wandb-project", "open-nllb", "--disable-validation"
+```
+
+Notes:
+* Modify `--distributed-world-size` depending on the number of GPUs you have on your system (I have 2, set to 1 if only single GPU)
+* I removed some of the sharded paths (I have 28 of them and so will you if you download all of the primary data) just to make it more readable
+* Modify `"--lang-pairs"` depending on which directions you want to train for
+* Modify `"--max-tokens", "2048"` depending on the amount of VRAM you have. This is the max number of tokens in a batch (NLLB paper used 1.000.000!)
+* Remove `--disable-validation` and uncomment `"--valid-subset", "valid",` if you have validation data (e.g. Flores 200)
+* Remove `"--fp16-adam-stats"` if you didn't install Apex otherwise your run will fail
+* Uncomment `--tensorboard-logdir` and remove `--wandb-project` if you wish to use Tensorboard instead of Weights & Biases
+* Needless to say adapt the paths for your local system and check out the README and the code for more information about what each of these arguments does.
 
 
