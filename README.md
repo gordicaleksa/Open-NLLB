@@ -1,4 +1,4 @@
-![No Language Left Behind](nllb.png?raw=true "NLLB")
+![Open No Language Left Behind](Open-NLLB.jpg?raw=true "NLLB")
 
 # OPEN NLLB effort 🦜
 
