@@ -9,6 +9,7 @@ Train a new model on one or across multiple GPUs.
 """
 
 import argparse
+from collections import defaultdict
 import logging
 import math
 import os
@@ -28,6 +29,7 @@ logger = logging.getLogger("fairseq_cli.train")
 import functools
 
 import numpy as np
+from sacrebleu import CHRF
 import torch
 from omegaconf import DictConfig, OmegaConf
 
@@ -44,6 +46,10 @@ from fairseq.logging import meters, metrics, progress_bar
 from fairseq.model_parallel.megatron_trainer import MegatronTrainer
 from fairseq.trainer import Trainer
 
+try:
+    import wandb
+except ImportError:
+    wandb = None
 
 def main(cfg: FairseqConfig) -> None:
     if isinstance(cfg, argparse.Namespace):
@@ -268,6 +274,141 @@ def should_stop_early(cfg: DictConfig, valid_loss: float) -> bool:
             return False
 
 
+@metrics.aggregate("eval")
+def intermediate_translate_and_eval(cfg, trainer, task, epoch_itr, valid_subsets, agg):
+    tag = "eval"
+    metrics.log_start_time("eval_wall", priority=800, round=0)
+    extra_gen_cls_kwargs = {"lm_model": None, "lm_weight": 0.0}
+    config_generation = OmegaConf.load(
+        os.path.join(os.path.dirname(__file__), "intermediate_translate_generation_config.yaml")
+    )
+    trainer.model.eval()
+    models = [trainer.get_model()]
+    trainer.begin_valid_epoch(epoch_itr.epoch)  # no op? they do it in validate so I repeat here but no idea why they use it...
+    src_trg_dict = getattr(task, "source_dictionary", None)  # source & target dicts are the same (SPM-200)
+    old_target_lang = task.args.target_lang  # Should be == None but just in case preserving the old value.
+
+    generations = defaultdict(list)
+    # Iterate through all of our language directions, minus the "valid" subset which samples from all lang directions.
+    for lang in valid_subsets[1:]:
+        lang_code = lang.split('-')[-1]
+        task.args.target_lang = lang_code  # Needs to be set because of symbols_to_strip_from_output
+        generator = task.build_generator(
+            models, config_generation, extra_gen_cls_kwargs=extra_gen_cls_kwargs
+        )
+        itr = trainer.get_valid_iterator(lang).next_epoch_itr(
+            shuffle=False, set_dataset_epoch=False  # use a fixed valid set
+        )
+        progress = progress_bar.progress_bar(
+            itr,
+            log_format="tqdm",
+            log_interval=1,
+            epoch=epoch_itr.epoch,
+            prefix=f"Eval on '{lang_code}' subset",
+        )
+
+        def get_symbols_to_strip_from_output(generator):
+            if hasattr(generator, "symbols_to_strip_from_output"):
+                return generator.symbols_to_strip_from_output
+            else:
+                return {generator.eos}
+
+        with torch.no_grad():
+            for i, sample in enumerate(progress):
+                # Because of sharding and the fact that the dataset can be of uneven size we need this guard.
+                if sample is None or len(sample) == 0:
+                    continue
+                progress.log(agg.get_smoothed_values(), tag=tag, step=i)
+                sample = utils.move_to_cuda(sample)
+                hypos = task.inference_step(
+                    generator,
+                    models,
+                    sample,
+                    prefix_tokens=None,
+                    constraints=None,
+                )
+
+                for i, sample_id in enumerate(sample["id"].tolist()):
+                    src_tokens = (
+                        utils.strip_pad(sample["net_input"]["src_tokens"][i, :], src_trg_dict.pad()).int().cpu()
+                    )
+                    target_tokens = (
+                        utils.strip_pad(sample["target"][i, :], src_trg_dict.pad()).int().cpu()
+                    )
+                    src_str = src_trg_dict.string(src_tokens, bpe_symbol="sentencepiece")
+                    target_str = src_trg_dict.string(
+                            target_tokens,
+                            bpe_symbol="sentencepiece",
+                            escape_unk=True,
+                            extra_symbols_to_ignore=get_symbols_to_strip_from_output(
+                                generator
+                            ),
+                        )
+                    hypo = hypos[i][0]  # The best hypothesis.
+                    _, hypo_str, _ = utils.post_process_prediction(
+                        hypo_tokens=hypo["tokens"].int().cpu(),
+                        src_str=src_str,
+                        alignment=hypo["alignment"],
+                        align_dict=None,
+                        tgt_dict=src_trg_dict,
+                        remove_bpe="sentencepiece",
+                        extra_symbols_to_ignore=get_symbols_to_strip_from_output(generator),
+                    )
+                    generations[lang_code].append((sample_id, src_str, target_str, hypo_str))
+
+        task.args.target_lang = old_target_lang  # Revert back to original state.
+
+    # I manually estimated the max_size. This is likely too loose of an estimate because the untrained model
+    # has much longer generations - we could dynamically reduce this size. Although 2 MB who cares.
+    result = distributed_utils.all_gather_list(generations, max_size=2097152)
+
+    # Post process the all-gathered results. Maybe we can be smarter about all-gather somehow
+    # and then we won't have to do this additional post-processing.
+    generations = defaultdict(list)
+    for dict_result in result:
+        for key, value in dict_result.items():
+            generations[key].extend(value)
+
+    for key in generations:
+        assert len(generations[key]) == 997, f'Flores 200 has 997 sentences but we got {len(generations[key])} for {key}'
+
+    metrics.log_stop_time("eval_wall")
+
+    # Log to Weights and Biases.
+    if distributed_utils.is_master(cfg.distributed_training):
+        for lang_code in generations:
+            generations[lang_code] = sorted(generations[lang_code], key=lambda x: x[0])
+
+        num_updates = trainer.get_num_updates()
+
+        # Step 1: log the corpus ChrF++ score for each of the lang directions.
+        for lang_code in generations:
+            _, _, target_str, translated_str = zip(*generations[lang_code])
+            chrf_metric = CHRF(word_order=2, references=[list(target_str)])
+            score = chrf_metric.corpus_score(list(translated_str), references=None).score
+            wandb.log({tag + "/" + f"{lang_code}_chrF++": score}, step=num_updates)
+
+        # Step 2: grab 20 random samples and log to in a form of a table.
+        sample_text_table = wandb.Table(columns=["id", "source", "target", "translation", "chrF++"])
+
+        for lang_code in generations:
+            chrf_metric = CHRF(word_order=2)
+            random_indices = np.random.choice(
+                range(len(generations[lang_code])), size=20, replace=False
+            )
+            for i, (index) in enumerate(random_indices):
+                _, src_str, target_str, hypo_str = generations[lang_code][index]
+                score = chrf_metric.sentence_score(hypo_str, [target_str])
+                signature = chrf_metric.get_signature().format(False)
+                formatted_score = score.format(width=2, score_only=False, signature=signature)
+                sample_text_table.add_data(str(i), src_str, target_str, hypo_str, formatted_score)
+
+        wandb.run.log({f"samples_{str(num_updates).zfill(7)}" : sample_text_table}, step=num_updates)
+
+        stats = agg.get_smoothed_values()
+        wandb.log({tag + "/" + "eval_wall": stats["eval_wall"]}, step=num_updates)
+
+
 @metrics.aggregate("train")
 def train(
     cfg: DictConfig, trainer: Trainer, task: tasks.FairseqTask, epoch_itr
@@ -443,6 +584,10 @@ def validate_and_save(
     if do_validate:
         # only validate the first subset before save_checkpoint
         valid_losses = validate(cfg, trainer, task, epoch_itr, valid_subsets[:1])
+        # create a new root metrics aggregator so validation metrics
+        # don't pollute other aggregators (e.g., train meters)
+        with metrics.aggregate(new_root=True) as agg:
+            intermediate_translate_and_eval(cfg, trainer, task, epoch_itr, valid_subsets, agg)
 
     should_stop |= should_stop_early(cfg, valid_losses[0])
 
