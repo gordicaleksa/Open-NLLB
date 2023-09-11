@@ -57,6 +57,8 @@ For example if one subset has 75M sentences and the other one 25M the sampling c
 
 But if we change the temperature from 1 to something above/below it - it also computes the "virtual size" of the dataset now that we’ve potentially upsampled (or downsampled) some of the lang-direction subsets.
 
+*Note on virtual size: as an example if we have 2 lang directions one with 1M and one with 0.5M sentences and temperature > 1 then the virtual size is basically 1M + 0.5M*c, where c is a coefficient larger than 1. Thus we end up with a virtual size that's bigger than 1.5M sentences (we will effectively duplicate certain sentences from that smaller subset).*
+
 It finally pre-computes all of the indices for this particular epoch for the virtual dataset and creates a random permutation of those indices.
 
 ## Step 6
@@ -64,11 +66,38 @@ Next we wrap `SampledMultiDataset` into `EpochBatchIterator`.
 
 At the end of the `get_train_iterator` function (which both loads `SampledMultiDataset` dataset and instantiates the `EpochBatchIterator`) we call `self.reset_dummy_batch(batch_iterator.first_batch)` which in return triggers `first_batch` function to be called which in return calls `frozen_batches` (`len` operator acting as the trigger) and finally that function subsequently calls the batch sampler which does the following 2 operations:
 
-a) sorts the virtual dataset indices by target & source sample sizes.
+a) sorts the virtual dataset indices by target & source sample sizes in that particular order.
 
 b) filters out the samples that are too long (> `512`) (either source/target).
 
 Note: `batch_sampler = dataset.batch_by_size` (line 354, `construct_batch_sampler` func in `TranslationMultiSimpleEpochTas`) didn’t make complete sense how the final indices were batched doesn’t seem to be monotonic in size. If someone wants to do an analysis around this and write a short report that would be a valuable contribution.
+
+## Step 6.1 - note on collation
+`first_batch` function (mentioned above called as a part of `self.reset_dummy_batch`) triggers the collation procedure for the dummy batch - which is effectively the first time that our code calls into the data pipeline.
+
+The process looks like the following:
+* We iterate through the indices of the first batch (as determined by the output of `dataset.batch_by_size` function all).
+* For each of those indices we index into `SampledMultiDataset` which internally delegates that index to the right `LanguagePairDataset` which then further delegates that call to the underlying source/target `mmap` datasets. From there we fetch the "raw" tokens which are then prepended with the language token (in `PrependTokenDataset`) and finally `SampledMultiDataset` propagates that information upward in a form of a dictionary with 3 keys: `id`, `source`, `target`.
+* Next up `SampledMultiDataset`'s collate function is triggered and internally it delegates this call further to `LanguagePairDataset`'s collate function.
+* The collate function extracts the `source` (`target`) tensors from each of those sample dictionaries. Finds the max sequence length and creates a tensor of dimension `num_samples` x `max_{src/trg}_len` initialized with `pad` tokens.
+* That resulting tensor is then populated with source/target tokens applying left/right padding respectively.
+* Finally we create another tensor (`prev_output_tokens`) that is the exact copy of the target tensor with the ony difference that the `</s>` "EOS" token is swapped so that it's now the first token in those sequences (effectively they are using "EOS" token as a BOS token as well - i.e. start/beginning of sequence token). This is the tensor that we feed into the decoder and we compare its outputs against the `target` tensor.
+* The collate function finally returns a dictionary:
+```
+    batch = {
+        "id": id,
+        "nsentences": len(samples),
+        "ntokens": ntokens,
+        "net_input": {
+            "src_tokens": src_tokens,
+            "src_lengths": src_lengths,
+            "prev_output_tokens": prev_output_tokens,
+        },
+        "target": target,
+    }
+```
+
+And this is exactly what you end up seeing if you take a look at our data loading loops for either training or validation. Now you understand exactly how the whole process works in the background (almost - see the next couple of steps! :)).
 
 ## Step 7
 `next_epoch_itr` function calls a shuffle on the `frozen_batches` (mentioned before as being a property of `EpochBatchIterator`) and additionally does the indices sharding across the GPUs (by wrapping the shuffled batch into `ShardedIterator`).
