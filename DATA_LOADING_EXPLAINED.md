@@ -1,6 +1,6 @@
 # Explanation of the MT data pipeline in Open-NLLB
 
-Dataset construction process looks like following, there are roughly 10 steps in total:
+Dataset construction process looks like following, there are 10 steps in total (note: the number of steps is semi-arbitrarily chosen so that we end up with approximately self-contained logical units):
 
 ## Step 1
 At the end of the data preparation stage (which happens in [Open-NLLB-stopes](https://github.com/gordicaleksa/Open-NLLB-stopes)) we end up with sharded, binarized language directions.
@@ -100,7 +100,11 @@ The process looks like the following:
 And this is exactly what you end up seeing if you take a look at our data loading loops for either training or validation. Now you understand exactly how the whole process works in the background (almost - see the next couple of steps! :)).
 
 ## Step 7
-`next_epoch_itr` function calls a shuffle on the `frozen_batches` (mentioned before as being a property of `EpochBatchIterator`) and additionally does the indices sharding across the GPUs (by wrapping the shuffled batch into `ShardedIterator`).
+Once we have retrieved `EpochBatchIterator` from step 6, we call the `next_epoch_itr` function on it and it does the following steps:
+* It shuffles the `frozen_batches`'s (mentioned before as being a property of `EpochBatchIterator`) rows. Frozen batches (which is a list of lists of indices) is arranged in such a way that its first rows contain indices of the shortest samples in our dataset. Thus those first indices lead to a construction of batches that have a large amount of short sentences. As we progress through its rows the batches end up having less and less sentences and are longer in length. Basically going from left to right and top to bottom across its indices we get progressively longer sentence pairs.
+* Shards the indices across different GPUs on our system (by wrapping the shuffled batch into `ShardedIterator`). If you have `n` GPUs on your system, the first GPU will take out 0th, (n-1)-first, 2*(n-1)-st ... rows from the shuffled batch.
+
+Note from @gordicaleksa: I think it might be better to first shard and then shuffle because doing it like this, in the worst case scenario, we might end up having a much larger work load on one of the GPUs. Because for example all of the "wide" batches end up on that GPU (i.e. small batch size long sentences).
 
 ## Step 8
 The sharded shuffled batches are then passed into `PyTorch’s dataloader` together with `SampledMultiDataset` and its collator function.
@@ -109,11 +113,11 @@ The sharded shuffled batches are then passed into `PyTorch’s dataloader` toget
 All of the above is then wrapped into a `CountingIterator` which just does what the name suggests: keeps track of the number of consumed batches during the training (or validation - similar pipeline there).
 
 ## Step 10
-Finally `CountingIterator` object is wrapped into in a progress bar (e.g. wandb + json). Those just
-do some additional logging (to the console and/or Weights & Biases dashboard) and then delegate the call to the
- `CountingIterator`.
+Finally `CountingIterator` object is wrapped into in a progress bar (e.g. `WandBProgressBarWrapper` + `JsonProgressBar`). Those just
+do some additional logging (to the console and/or Weights & Biases dashboard) and then delegate the call to the `CountingIterator`.
 
-Only the main/master GPU process will log to Weights & Biases. The other processes won't have that additional progress bar wrapper instead they'll only have e.g. JSON bar wrapper.
+Note: Only the main/master GPU (the one that has a global rank == 0) process will log to Weights & Biases.
+The other GPU processes won't have that additional wandb progress bar wrapper instead they'll only have e.g. JSON bar wrapper.
 
 ---
 
