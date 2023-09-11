@@ -1,10 +1,11 @@
-# Explanation of the MT data loading pipeline in fairseq
+# Explanation of the MT data pipeline in Open-NLLB
 
-Dataset construction process looks like following:
+Dataset construction process looks like following, there are roughly 10 steps in total:
 
-1. At the end of the data preparation stage in stopes we end up with sharded binarized language directions.
+## Step 1
+At the end of the data preparation stage (which happens in [Open-NLLB-stopes](https://github.com/gordicaleksa/Open-NLLB-stopes)) we end up with sharded, binarized language directions.
 
-Example: let's take `eng_Latn-tur_Latn` language direction as an example.
+Example: let's take `eng_Latn-tur_Latn` language direction as an example (meaning English to Turkish direction, both have Latin script).
 The train dataset has 28 shards that are organized in the following structure:
 ```
 /data_bin
@@ -19,52 +20,72 @@ The train dataset has 28 shards that are organized in the following structure:
     /shard027
 ```
 
-`bin` files contain tokenized sentences (we used `SPM-200` tokenizer) per line.
-All of them are suffixed with an EOS token `</s>` that has index = 2 in SPM-200's dictionary.
+Both `bin` and `idx` files are binary files that have a proprietary format (`mmap` format).
+
+`bin` files contain tokenized sentences (we used the `SPM-200` tokenizer) per line (in a raw/binary format). All of them are suffixed with an EOS token (`</s>`) that has index = 2 in SPM-200's dictionary.
 
 `idx` files contain number of tokens per sentence from the `bin` file (including the `</s>` token) per line, aka a single number per line.
 
-The language code just before the `.bin`/`.idx`suffix tells us the processed language in that file.
+The language code just before the `.bin`/`.idx` suffix tells us about the processed language in that particular file (i.e. are these English or Turkish sentences).
 
-2. Next up we load the data from the above `bin`/`idx` files into `mmap` or memory mapped dataset.
-TL;DR: `mmap` helps us to deal with datasets whose size can't fit in system memory (RAM). It handles loading from the disk.
+## Step 2
+Next up we load the data from the above `bin`/`idx` files into `mmap` or memory mapped dataset.
 
-It's the lowest level of abstraction is and it deals with headers, pointers and bytes from `.bin` & `.idx`.
+TL;DR: `mmap` helps us to deal with datasets whose size can't fit in system memory (RAM). It automagically handles loading from the disk so that you don't have to think about RAM utilization yourself.
+
+It's the lowest level of abstraction and it deals with headers, pointers and bytes from `.bin` & `.idx` files.
 
 You can find its implementation in the `MMapIndexedDataset` class.
 
-3. We then wrap the mmap dataset for both the source and the target language into `PrependTokenDataset`.
-As the name suggests it prepends the lang tokens to all src & trg tokenized sentences (token here means a number not something like `_an`).
+## Step 3
+We then wrap the `mmap` dataset for both the source and the target language into `PrependTokenDataset`.
+
+As the name suggests it prepends the lang tokens to all src & trg tokenized sentences (token here means a number/index in the SPM dictionary not something like `_an`).
 
 Language tokens look something like `__hin_Deva__` and have their own corresponding index in the SPM dictionary.
 
-So at this point the source/target sentence might look something like: `260058 230 392 22050 2` (format: `lang token` - `data tokens` - `</s>`).
+So at this point the source/target sentence might look something like: `260058 230 392 22050 2` (format = (`lang token` = 260058, `data tokens` = 230 392 22050, `</s>` = 2).
 
-4. We then wrap the source/target `PrependTokenDataset` datasets into `LanguagePairDataset` abstraction.
+## Step 4
+We then wrap the source/target `PrependTokenDataset` datasets into `LanguagePairDataset` abstraction.
 
-5. We then wrap multiple of `LanguagePairDataset` (for every lang direction we are training on) into `SampledMultiDataset`.
+## Step 5
+We then wrap multiple `LanguagePairDataset`s (for every lang direction we are training on) into `SampledMultiDataset`.
 
 This dataset additionally assigns a sampling ratio to each of its `LanguagePairDataset` subsets - based on the size of the subset.
 For example if one subset has 75M sentences and the other one 25M the sampling coefficients  will be 0.75 and 0.25 respectively (unless we modify the temperature). That means  we'll be sampling 3x more data from the bigger subset (proportionally).
 
 But if we change the temperature from 1 to something above/below it - it also computes the "virtual size" of the dataset now that we’ve potentially upsampled (or downsampled) some of the lang-direction subsets.
 
-It finally pre-computes all of the indices for this particular epoch for the virtual dataset and randomely permutes them based on some deterministic way of configuring the random seed.
+It finally pre-computes all of the indices for this particular epoch for the virtual dataset and creates a random permutation of those indices.
 
-6. Next we wrap `SampledMultiDataset` into `EpochBatchIterator`.
+## Step 6
+Next we wrap `SampledMultiDataset` into `EpochBatchIterator`.
 
-# WIP - will wrap it up tomorrow :)
+At the end of the `get_train_iterator` function (which both loads `SampledMultiDataset` dataset and instantiates the `EpochBatchIterator`) we call `self.reset_dummy_batch(batch_iterator.first_batch)` which in return triggers `first_batch` function to be called which in return calls `frozen_batches` (`len` operator acting as the trigger) and finally that function subsequently calls the batch sampler which does the following 2 operations:
 
-Add the end of the construction process we call frozen_batch we additionally **sort indices by target & source sample sizes** and then we **filter out the ones that are too long** (> `512`).
+a) sorts the virtual dataset indices by target & source sample sizes.
 
-Note: `batch_sampler = dataset.batch_by_size(` (line 354, construct_batch_sampler func in TranslationMultiSimpleEpochTask didn’t make complete sense how the final indices were batched doesn’t seem to be monotonic in size
+b) filters out the samples that are too long (> `512`) (either source/target).
 
-Later `next_epoch_itr` calls a shuffle on the `frozen_batches` from `EpochBatchIterator` + does the sharding across GPUs (by wrapping the shuffled batch into `ShardedIterator`) 
+Note: `batch_sampler = dataset.batch_by_size` (line 354, `construct_batch_sampler` func in `TranslationMultiSimpleEpochTas`) didn’t make complete sense how the final indices were batched doesn’t seem to be monotonic in size. If someone wants to do an analysis around this and write a short report that would be a valuable contribution.
 
-Finally it passes the sharded batches into `PyTorch’s dataloader`
+## Step 7
+`next_epoch_itr` function calls a shuffle on the `frozen_batches` (mentioned before as being a property of `EpochBatchIterator`) and additionally does the indices sharding across the GPUs (by wrapping the shuffled batch into `ShardedIterator`).
 
-That’s then wrapped into a `CountingIterator`
+## Step 8
+The sharded shuffled batches are then passed into `PyTorch’s dataloader` together with `SampledMultiDataset` and its collator function.
 
-And finally that’s wrapped up in a progress bar (e.g. wandb + json)
+## Step 9
+All of the above is then wrapped into a `CountingIterator` which just does what the name suggests: keeps track of the number of consumed batches during the training (or validation - similar pipeline there).
 
-Task: `TranslationMultiSimpleEpochTask`
+## Step 10
+Finally `CountingIterator` object is wrapped into in a progress bar (e.g. wandb + json). Those just
+do some additional logging (to the console and/or Weights & Biases dashboard) and then delegate the call to the
+ `CountingIterator`.
+
+Only the main/master GPU process will log to Weights & Biases. The other processes won't have that additional progress bar wrapper instead they'll only have e.g. JSON bar wrapper.
+
+---
+
+Some additional context: all of this is a part of the `TranslationMultiSimpleEpochTask`.
