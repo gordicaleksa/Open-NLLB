@@ -70,7 +70,7 @@ a) sorts the virtual dataset indices by target & source sample sizes in that par
 
 b) filters out the samples that are too long (> `512`) (either source/target).
 
-Note: `batch_sampler = dataset.batch_by_size` (line 354, `construct_batch_sampler` func in `TranslationMultiSimpleEpochTas`) didn’t make complete sense how the final indices were batched doesn’t seem to be monotonic in size. If someone wants to do an analysis around this and write a short report that would be a valuable contribution.
+c) batches/chunks the indices from a) such that the total number of source/target tokens in a batch (including the padding) is below `max_tokens` specified by our input training arguments. This is done in the `batch_by_size_vec` function.
 
 ## Step 6.1 - note on collation
 `first_batch` function (mentioned above called as a part of `self.reset_dummy_batch`) triggers the collation procedure for the dummy batch - which is effectively the first time that our code calls into the data pipeline.
