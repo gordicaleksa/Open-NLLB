@@ -22,6 +22,7 @@ import csv
 import gzip
 import os
 import re
+from typing import List
 import requests
 import shutil
 import tarfile
@@ -1391,7 +1392,7 @@ def download_NLLBMD(directory):
         os.remove(download_path)
 
 
-def download_Flores202(directory, eval_directions: list[str]):
+def download_Flores202(directory, eval_directions: List[str]):
     """
     https://github.com/facebookresearch/flores/blob/main/flores200/README.md
     """
