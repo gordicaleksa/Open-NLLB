@@ -2,16 +2,28 @@
 
 # OPEN NLLB effort 🦜
 
-The main goal of this effort is to release truly **open-source** NLLB checkpoints that can be freely used
-even for commercial purposes. Meta released their checkpoints under non-commercial CC-NC-BY 4.0 license.
+[Roadmap](https://github.com/users/gordicaleksa/projects/2/)
+
+After OpenAI's ChatGPT was released the whole world got caught up in the AI frenzy (and for a good reason). While systems such as Meta's Llama and OpenAI's GPT-4 are incredibly powerful - they only focus on English language.
+
+Similarly, for machine translation systems, Meta released a powerful NLLB ("no language left behind") MT system that supports 202 languages! - but they didn't release open-source checkpoints (they were released under non-commercial CC-NC-BY 4.0 license).
+
+The **main goal** of this effort is to release truly **open-source** NLLB checkpoints that can be freely used even for commercial purposes.
+
+The **extended goal** of this project is to scale up beyond the original 3.3B parameters dense transformers (7B+) and also support non-English LLMs.
+
+We strongly believe that focusing on multilingual AI models can help democratize this technology, and help businesses & researchers around the world.
+
+## Getting started 🚀
+
+Check out our [getting started guide](GETTING_STARTED.md) if you wish to contribute! Or just play around!
+
+## Community
 
 👨‍👩‍👧‍👦 Join [Aleksa Gordić - The AI Epiphany](https://discord.gg/peBrCpheKE) Discord server and the [#open-nllb](https://discord.gg/59DZDWgR5a) channel if you want to engage with the rest of the community!
 
 📺 [Daily YouTube video streams here](https://www.youtube.com/@TheAIEpiphany)! 👀
 
-## Getting started 🚀
-
-Check out our [getting started guide](GETTING_STARTED.md) if you wish to contribute! Or just play around!
 
 ## Language champions
 
