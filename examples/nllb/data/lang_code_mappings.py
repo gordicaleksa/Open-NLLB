@@ -702,7 +702,13 @@ ISO_639_1_TO_ISO_639_3 = {
     "tl" : "tgl",
     "ur" : "urd",
     "zu" : "zul",
+    "sr" : "srp",
+    "bs" : "bos",
+    "hr" : "hrv",
 }
+
+def ISO_639_1_TO_BCP_47_func(iso_639_1_code):
+    return ISO_639_3_TO_BCP_47[ISO_639_1_TO_ISO_639_3[iso_639_1_code]][0]
 
 LOCALIZED_TO_ISO_639_3 = {
     "es-LA": "spa",
