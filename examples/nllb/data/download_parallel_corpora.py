@@ -23,6 +23,7 @@ import gzip
 import os
 import re
 from typing import List
+from tqdm import tqdm
 import requests
 import shutil
 import tarfile
@@ -1366,6 +1367,18 @@ def download_NLLBSeed(directory):
 #
 # Evaluation datasets.
 #
+
+# Eval datasets links (8 public benchmarks) + Flores 202 above are used for evaluation in the paper:
+# https://github.com/facebookresearch/flores/raw/master/data/flores_test_sets.tgz <-flores v1
+# https://docs.google.com/forms/d/e/1FAIpQLSfQqhxslVSkBN5ScQ2bvvM0xUVCUnjXxtvkAjupvxm3SSeZGw/viewform <- MADAR, we have to sign a form (found it here: https://camel.abudhabi.nyu.edu/madar-parallel-corpus/)
+# https://huggingface.co/datasets/autshumato/blob/main/autshumato.py <- autshumato dataset
+# https://huggingface.co/datasets/masakhane/mafand/blob/main/mafand.py and https://github.com/masakhane-io/lafand-mt/tree/main/data/json_files <- Mafand
+# https://huggingface.co/datasets/iwslt2017/blob/main/iwslt2017.py <- IWSLT 2017, the paper say this was their test set (depending on the language they pick a different version/year)
+# For WMT - similar thing as for IWSLT, depending on the lang they pick a different version (https://huggingface.co/datasets/wmt19)
+# check out table 55 & table 56 in the paper
+# WAT https://lotus.kuee.kyoto-u.ac.jp/WAT/WAT2019/ <- struggling to find the actual dataset, the answer is somewhere in there
+# They used TICO for eval as well but not sure what's the split?
+
 def download_NLLBMD(directory):
     """
     https://github.com/facebookresearch/flores/blob/main/nllb_md/README.md
@@ -1463,16 +1476,86 @@ def download_Flores202(directory, eval_directions: List[str]):
     shutil.rmtree(dataset_directory)
 
 
-# Eval datasets links (8 public benchmarks) + Flores 202 above are used for evaluation in the paper:
-# https://github.com/facebookresearch/flores/raw/master/data/flores_test_sets.tgz <-flores v1
-# https://docs.google.com/forms/d/e/1FAIpQLSfQqhxslVSkBN5ScQ2bvvM0xUVCUnjXxtvkAjupvxm3SSeZGw/viewform <- MADAR, we have to sign a form (found it here: https://camel.abudhabi.nyu.edu/madar-parallel-corpus/)
-# https://huggingface.co/datasets/autshumato/blob/main/autshumato.py <- autshumato dataset
-# https://huggingface.co/datasets/masakhane/mafand/blob/main/mafand.py and https://github.com/masakhane-io/lafand-mt/tree/main/data/json_files <- Mafand
-# https://huggingface.co/datasets/iwslt2017/blob/main/iwslt2017.py <- IWSLT 2017, the paper say this was their test set (depending on the language they pick a different version/year)
-# For WMT - similar thing as for IWSLT, depending on the lang they pick a different version (https://huggingface.co/datasets/wmt19)
-# check out table 55 & table 56 in the paper
-# WAT https://lotus.kuee.kyoto-u.ac.jp/WAT/WAT2019/ <- struggling to find the actual dataset, the answer is somewhere in there
-# They used TICO for eval as well but not sure what's the split?
+#
+# HBS (Croatian, Bosnian, Serbian) specific data download functions.
+#
+def macaco_infer_lang_code(file_name):
+    if "bs" in file_name:
+        if "cyrillic" in file_name:
+            return "bos_Cyrl"
+        else:
+            return "bos_Latn"
+    elif "hr" in file_name:
+        return "hrv_Latn"
+    elif "sr" in file_name:
+        if "cyrillic" in file_name:
+            return "srp_Cyrl"
+        else:
+            return "srp_Latn"
+    else:
+        raise Exception(f"Could not infer language code from {file_name}")
+
+
+def download_MaCoCu(directory):
+    """
+    https://macocu.eu/
+    """
+    corpus_name = "MaCoCu"
+    dataset_directory = init_routine(directory, corpus_name)
+
+    download_urls = [
+        "https://www.clarin.si/repository/xmlui/bitstream/handle/11356/1820/MaCoCu-bs-en.cyrillic.sent.txt.gz",
+        "https://www.clarin.si/repository/xmlui/bitstream/handle/11356/1820/MaCoCu-bs-en.latin.sent.txt.gz",
+        "https://www.clarin.si/repository/xmlui/bitstream/handle/11356/1814/MaCoCu-hr-en.sent.txt.gz",
+        "https://www.clarin.si/repository/xmlui/bitstream/handle/11356/1819/MaCoCu-sr-en.cyrillic.sent.txt.gz",
+        "https://www.clarin.si/repository/xmlui/bitstream/handle/11356/1819/MaCoCu-sr-en.latin.sent.txt.gz",
+    ]
+
+    for download_url in download_urls:
+        response = requests.get(download_url)
+        print(f'Downloading from {download_url}')
+        if not response.ok:
+            raise Exception(f"Could not download from {download_url} ... aborting for NLLB Seed!")
+        file_name = download_url.split("/")[-1]
+        download_path = os.path.join(dataset_directory, file_name)
+        open(download_path, "wb").write(response.content)
+        print(f"Wrote: {download_path}")
+
+    print(f"Parsing the {corpus_name} datasets...")
+    for file_name in os.listdir(dataset_directory):
+        dataset_path = os.path.join(dataset_directory, file_name)
+        with gzip.open(dataset_path, 'rb') as f:
+            file_content = f.read().decode("utf-8")
+            lines = file_content.split("\n")
+            lines = lines[1:]
+            if lines[-1] == "":
+                lines = lines[:-1]
+            trg_texts = []
+            src_texts = []
+            for line in tqdm(lines):
+                elements = line.split("\t")
+                assert len(elements) == 28, "Line does not have 6 elements"
+                trg_text = elements[2]
+                src_text = elements[3]
+                trg_texts.append(trg_text.strip() + "\n")
+                src_texts.append(src_text.strip() + "\n")
+
+            src_lang = "eng_Latn"  # We're using MaCoCu only for HBS data.
+            trg_lang = macaco_infer_lang_code(file_name)
+            lang_direction = f"{src_lang}-{trg_lang}"
+            lang_direction_path = os.path.join(dataset_directory, lang_direction)
+            os.makedirs(lang_direction_path, exist_ok=True)
+            out_file_src = os.path.join(lang_direction_path, f"{corpus_name}.{src_lang}")
+            out_file_trg = os.path.join(lang_direction_path, f"{corpus_name}.{trg_lang}")
+
+            with open(out_file_src, "w") as f:
+                f.writelines(src_texts)
+
+            with open(out_file_trg, "w") as f:
+                f.writelines(trg_texts)
+
+        os.remove(dataset_path)
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
@@ -1534,6 +1617,9 @@ if __name__ == "__main__":
     download_minangNLP(directory)
     download_aau(directory)
     download_NLLBSeed(directory)
+
+    # HBS datasets.
+    download_MaCoCu(directory)
 
     # Makes sure that the datasets are in the expected format (see the script header).
     validate_downloaded_data(directory)

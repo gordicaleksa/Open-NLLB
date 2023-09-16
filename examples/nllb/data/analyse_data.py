@@ -1,15 +1,21 @@
 import argparse
 from collections import defaultdict
+import concurrent.futures
+from concurrent.futures import ProcessPoolExecutor
 from enum import Enum
 import gzip
 import json
+import math
 import pickle
 import pathlib
 import os
 
 import matplotlib.pyplot as plt
 import numpy as np
+from tqdm import tqdm
 import yaml
+import fasttext
+from huggingface_hub import hf_hub_download
 
 from dataset_utils import count_lines, FilteringCounts, DedupFilter, DatasetLine
 from lang_code_mappings import retrieve_supported_files_and_iso_639_3_codes, ISO_639_3_TO_BCP_47
@@ -19,12 +25,73 @@ class FeatureType(Enum):
     dedup = 1
     line_lengths = 2
     num_sentences = 3
+    lid = 4
 
 
 UPPER_LINE_LEN_THRESHOLD = 1050
 LOWER_LINE_LEN_THRESHOLD = 5
 
-outlier_datasets = defaultdict(int)
+
+def lid_worker(lines, lang_code):
+    # TODO: fasttext models are non-pickable so this was a suboptimal solution I came up with.
+    model_path = hf_hub_download(repo_id="facebook/fasttext-language-identification", filename="model.bin")
+    lid_model = fasttext.load_model(model_path)
+
+    lid_model_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "lid201-model.bin")
+    open_lid_model = fasttext.load_model(lid_model_path)
+    models = [["nllb-lid", lid_model], ["open-lid", open_lid_model]]
+
+    data = []
+    for line in lines:
+        line = line.strip()
+        output = {}
+        for (model_name, model) in models:
+            pred = model.predict(line, k=2)
+            pred = [list(pred[0]), list(pred[1])]  # convert from numpy to list so that we can save it later on without pickle.
+            if pred[0][0] != f'__label__{lang_code}' and pred[1][0] >= 0.95 and len(line) > 25:  # most LID models only become confident after 100 chars...
+                output[model_name] = [line, pred]
+        if output:
+            data.append(output)
+
+    return data
+
+
+def lid_predict_parallel(models, lang_code, file_path, is_gz, lid_per_line_dict, corpus_name):
+    num_chunks = 8
+    assert isinstance(models, list), f'Expected a list of models, got {type(models)}.'
+    with gzip.open(file_path, 'r') if is_gz else open(file_path, 'r') as f:
+        num_lines = count_lines(file_path)
+        num_lines_per_chunk = math.ceil(num_lines / num_chunks)
+        src_lines = f.readlines()
+        chunks = [src_lines[i:i + num_lines_per_chunk] for i in range(0, len(src_lines), num_lines_per_chunk)]
+
+    with ProcessPoolExecutor(max_workers=num_chunks) as executor:
+        futures = [
+            executor.submit(lid_worker, chunk, lang_code)
+            for chunk in chunks
+        ]
+        with tqdm(total=num_chunks) as pbar:
+            for _ in concurrent.futures.as_completed(futures):
+                pbar.update(1)
+        for future in futures:
+            data = future.result()
+            lid_per_line_dict[f'{corpus_name}_{lang_code}'].extend(data)
+
+
+def lid_predict_serial(models, lang_code, file_path, is_gz, lid_per_line_dict, corpus_name):
+    assert isinstance(models, list), f'Expected a list of models, got {type(models)}.'
+    with gzip.open(file_path, 'r') if is_gz else open(file_path, 'r') as f:
+        for i, line in enumerate(tqdm(f, total=count_lines(file_path))):
+            line = line.strip()
+            for (model_name, model) in models:
+                output = {}
+                pred = model.predict(line, k=2)
+                pred = [list(pred[0]), list(pred[1])]  # convert from numpy to list so that we can save it later on without pickle.
+                if pred[0][0] != f'__label__{lang_code}' and pred[1][0] >= 0.95 and len(line) > 25:
+                    output[model_name] = [line, pred]
+            if output:
+                lid_per_line_dict[f'{corpus_name}_{lang_code}'].append(output)
+
 
 def compute_line_lengths(lang_code, file_path, length_factors, lang_line_lengths, verbose, is_gz):
     print(f'Analyzing sentence lengths in {file_path}.')
@@ -35,7 +102,6 @@ def compute_line_lengths(lang_code, file_path, length_factors, lang_line_lengths
             len1 = len(line) * length_factor1
             line_lengths1.append(len1)
             if not (LOWER_LINE_LEN_THRESHOLD < len1 < UPPER_LINE_LEN_THRESHOLD) and verbose:
-                outlier_datasets[pathlib.Path(file_path).parent.parent.name] += 1
                 print(f'Found a {i+1}. line outlier with length {len1} in {pathlib.Path(file_path).parent.parent.name} above our threshold {UPPER_LINE_LEN_THRESHOLD}.')
     lang_line_lengths[lang_code].extend(line_lengths1)
 
@@ -45,6 +111,16 @@ def analyze_primary_data(args, features: list[FeatureType], langs: list[str] = N
     datasets_root = args.datasets_root
     is_gz = args.is_gz
     verbose = args.verbose
+
+    if FeatureType.lid in features:
+        model_path = hf_hub_download(repo_id="facebook/fasttext-language-identification", filename="model.bin")
+        lid_model = fasttext.load_model(model_path)
+
+        lid_model_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "lid201-model.bin")
+        open_lid_model = fasttext.load_model(lid_model_path)
+
+        lid_out_dir_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "lid_out_results")
+        os.makedirs(lid_out_dir_path, exist_ok=True)
 
     if FeatureType.line_lengths in features:
         length_factors_file_path = length_factors_path
@@ -67,7 +143,14 @@ def analyze_primary_data(args, features: list[FeatureType], langs: list[str] = N
     duplicates_dict = defaultdict(lambda: defaultdict(int))
     cnt_pairs = 0
     duplicates_cnt = 0
-    for root_dir, _, files in os.walk(datasets_root):
+
+    # If we put these 2 here we're doing global dedup, put them inside of the loop for corpus-level dedup.
+    dataset_counts = FilteringCounts()  # filtering counts for the current dataset
+    fltr = DedupFilter(dedup_pairs=True, max_source_dedup=None, max_target_dedup=None)
+
+    lid_per_line_dict = defaultdict(list)
+
+    for i, (root_dir, _, files) in enumerate(os.walk(datasets_root)):
         files_and_lang_directions = retrieve_supported_files_and_iso_639_3_codes(files, is_gz)
         if len(files_and_lang_directions) == 0:
             continue
@@ -75,15 +158,12 @@ def analyze_primary_data(args, features: list[FeatureType], langs: list[str] = N
         for i in range(0, len(files_and_lang_directions), 2):
             corpus_name = pathlib.Path(root_dir).parent.name
             lang_direction = pathlib.Path(root_dir).name
-            file1, lang_code1 = files_and_lang_directions[i]
-            file2, lang_code2 = files_and_lang_directions[i+1]
-            lang_code1 = ISO_639_3_TO_BCP_47[lang_code1][0]
-            lang_code2 = ISO_639_3_TO_BCP_47[lang_code2][0]
+            file1 = files_and_lang_directions[i][0]
+            file2 = files_and_lang_directions[i+1][0]
+            lang_code1 = file1.split('.')[-1]
+            lang_code2 = file2.split('.')[-1]
             file_path1 = os.path.join(root_dir, file1)
             file_path2 = os.path.join(root_dir, file2)
-
-            dataset_counts = FilteringCounts()  # filtering counts for the current dataset
-            fltr = DedupFilter(dedup_pairs=True, max_source_dedup=None, max_target_dedup=None)
 
             cnt_pairs += 1
             if FeatureType.num_sentences in features:
@@ -98,10 +178,20 @@ def analyze_primary_data(args, features: list[FeatureType], langs: list[str] = N
                 if langs is None or lang_code2 in langs:
                     compute_line_lengths(lang_code2, file_path2, length_factors, lang_line_lengths_dict, verbose, is_gz)
 
+            if FeatureType.lid in features:
+                if langs is None or lang_code1 in langs:
+                    lid_predict_parallel([["nllb-lid", lid_model], ["open-lid", open_lid_model]], lang_code1, file_path1, is_gz, lid_per_line_dict, corpus_name)
+
+                if langs is None or lang_code2 in langs:
+                    lid_predict_parallel([["nllb-lid", lid_model], ["open-lid", open_lid_model]], lang_code2, file_path2, is_gz, lid_per_line_dict, corpus_name)
+
+                with open(os.path.join(lid_out_dir_path, f'lid_per_line_dict_{str(i).zfill(3)}.json'), 'w', encoding="utf-8") as fp:
+                    json.dump(dict(lid_per_line_dict), fp, indent=4, ensure_ascii=False)
+
             if FeatureType.dedup in features:
                 if langs is None or (lang_code1 in langs and lang_code2 in langs):  # pairwise dedup hence and operator.
                     with gzip.open(file_path1, 'r') if is_gz else open(file_path1, 'r') as f, gzip.open(file_path2, 'r') if is_gz else open(file_path2, 'r') as g:
-                        for i, (line1, line2) in enumerate(zip(f, g)):
+                        for i, (line1, line2) in enumerate(tqdm(zip(f, g), total=count_lines(file_path1))):
                             if is_gz:
                                 # Convert from bytes to string
                                 line1 = line1.decode('utf-8')
@@ -132,7 +222,6 @@ def analyze_primary_data(args, features: list[FeatureType], langs: list[str] = N
     # Step 2: Visualize & analyze the information collected above
     #
     if FeatureType.line_lengths in features:
-        print(f'Datasets containing length outliers: {outlier_datasets}')
         for lang in lang_line_lengths_dict.keys():
             line_lengths = np.array(lang_line_lengths_dict[lang])
             k = 10
@@ -143,7 +232,8 @@ def analyze_primary_data(args, features: list[FeatureType], langs: list[str] = N
             num_outliers_relative = num_outliers / len(line_lengths)
             print(f'Found {num_outliers} sentence length outliers ({num_outliers_relative}%) in {lang}.')
             # Compute a numpy histogram
-            hist, bin_edges = np.histogram(line_lengths, bins=500)
+            non_outlier_line_lengths = line_lengths[np.logical_and(line_lengths < UPPER_LINE_LEN_THRESHOLD, line_lengths > LOWER_LINE_LEN_THRESHOLD)]
+            hist, bin_edges = np.histogram(non_outlier_line_lengths, bins=500)
             # Compute the bin centers
             bin_centers = 0.5 * (bin_edges[:-1] + bin_edges[1:])
             # Plot the histogram in matplotlib
@@ -244,6 +334,6 @@ if __name__ == '__main__':
         help="Path to the length factors file (created in the stopes repo).",
     )
     args = parser.parse_args()
-    analyze_primary_data(args, [FeatureType.num_sentences], langs=None)
+    analyze_primary_data(args, [FeatureType.lid], langs=None)
     # analyze_dumps()
     # duplicate_analysis()

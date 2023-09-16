@@ -41,7 +41,7 @@ from opustools import OpusRead, OpusGet
 
 
 from lang_code_mappings import ISO_639_1_TO_BCP_47_func
-from download_parallel_corpora import gzip_extract_and_remove
+from examples.nllb.data.download_nllb_public import gzip_extract_and_remove
 
 
 # Not used atm - experimental.

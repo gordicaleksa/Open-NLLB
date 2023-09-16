@@ -7,6 +7,12 @@
 3. (Optional - advanced) If you wish to analyze the data for each of the languages in the primary dataset check out the `analyse_data.py` script.
 4. (Optional - advanced) Check out some notes we compiled by manually analyzing the datasets available for download from our `download_parallel_corpora.py` script [here](examples/nllb/data/NOTES_ON_LANGS.md).
 
+## Steps to download the HBS (Croatian, Bosnian, Serbian) data
+
+1. Similarly to above just use the download_MaCoCu function from the `download_parallel_corpora.py` script and comment out everything else.
+
+2. Also run `download_opus.py` script to get the OPUS data.
+
 You can find more information down below.
 
 ### Primary Datasets

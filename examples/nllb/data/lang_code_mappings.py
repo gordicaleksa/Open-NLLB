@@ -7,7 +7,7 @@ BCP47_REGEX = re.compile(r'[a-z]{3}_[a-zA-Z]{4}')
 UNSUPPORTED_LANG_CODES = ['slr', 'kum', 'sah', 'alt', 'tyv', 'kaa', 'kjh', 'cjs', 'chv', 'krc', 'tir_ER', 'aar', 'nde', 'ven', 'uum', 'gag']
 
 # These codes contain 2 possible scripts
-AMBIGUOUS_ISO_639_3_CODES = ['ace', 'bjn', 'kas', 'knc', 'taq', 'zho']
+AMBIGUOUS_ISO_639_3_CODES = ['ace', 'bjn', 'kas', 'knc', 'taq', 'zho', "srp", "bos"]
 
 # These are some additional mappings I added manually after analyzing the data to ISO_639_3_TO_BCP_47.
 # Most of these are macro-langs and we make an assumption about which specific langs they map to.
@@ -110,7 +110,8 @@ ISO_639_3_TO_BCP_47 = {
         "bod_Tibt"
     ],
     "bos": [
-        "bos_Latn"
+        "bos_Latn",
+        "bos_Cyrl"
     ],
     "bug": [
         "bug_Latn"
@@ -537,6 +538,7 @@ ISO_639_3_TO_BCP_47 = {
         "srd_Latn"
     ],
     "srp": [
+        "srp_Latn",
         "srp_Cyrl"
     ],
     "ssw": [
@@ -744,7 +746,8 @@ with open(extended_langs_path, 'r') as f:
     for v in ISO_639_3_TO_BCP_47.values():
         bcp_47_codes.extend(v)
     SUPPORTED_BCP_47_CODES = list(set(bcp_47_codes))
-    assert len(SUPPORTED_BCP_47_CODES) == 202, f'Expected 202 supported langs, got {len(SUPPORTED_BCP_47_CODES)}.'
+    # 204 bc 202 originally + Serbian Latin + Bosnian Cyrillic.
+    assert len(SUPPORTED_BCP_47_CODES) == 204, f'Expected 204 supported langs, got {len(SUPPORTED_BCP_47_CODES)}.'
 
 def retrieve_supported_files_and_iso_639_3_codes(files, is_gz=False):
     new_files_and_iso_639_3_codes = []
