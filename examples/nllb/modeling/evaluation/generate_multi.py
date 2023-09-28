@@ -160,175 +160,178 @@ class GenerateMultiModule(stopes.core.StopesModule):
         iteration_value: tp.Optional[tp.Any] = None,
         iteration_index: int = 0,
     ):
-        job_config = iteration_value
-        lang_pairs = job_config.lang_pairs
-        for lang_pair in lang_pairs:
-            try:
-                src = lang_pair.split("-")[0]
-                tgt = lang_pair.split("-")[1]
-                if self.config.finetune_dict_specs is not None:
-                    finetune_dict_specs = (
-                        f' --finetune-dict-specs "{self.config.finetune_dict_specs}"'
-                    )
-                else:
-                    finetune_dict_specs = ""
-                if self.config.model_type == "moe":
-                    max_sentences = 36
-                    cap = self.config.moe_eval_cap
-                    req = self.requirements()
-                    world_size = req.nodes * req.gpus_per_node
-                    port = (randint(0, 32767) % 119) + 15_000
-                    model_overrides = {
-                        "world_size": world_size,
-                        "moe_eval_capacity_token_fraction": cap,
-                        "use_moe_pad_mask": False,
-                        "pass_tokens_transformer_layer": False,
-                        "replication_count": self.config.replication_count,
-                    }
-                    moe_params = (
-                        "--is-moe "
-                        f"--distributed-world-size {world_size} "
-                        f"--distributed-port {port} "
-                        f'--model-overrides "{repr(model_overrides)}" '
-                    )
-                else:
-                    moe_params = ""
-                    max_sentences = 50
-                    cap = "no_cap"
+        jobs = self.array()
+        for iteration_value in jobs:
+            job_config = iteration_value
+            lang_pairs = job_config.lang_pairs
+            for lang_pair in lang_pairs:
+                try:
+                    src = lang_pair.split("-")[0]
+                    tgt = lang_pair.split("-")[1]
+                    if self.config.finetune_dict_specs is not None:
+                        finetune_dict_specs = (
+                            f' --finetune-dict-specs "{self.config.finetune_dict_specs}"'
+                        )
+                    else:
+                        finetune_dict_specs = ""
+                    if self.config.model_type == "moe":
+                        max_sentences = 36
+                        cap = self.config.moe_eval_cap
+                        req = self.requirements()
+                        world_size = req.nodes * req.gpus_per_node
+                        port = (randint(0, 32767) % 119) + 15_000
+                        model_overrides = {
+                            "world_size": world_size,
+                            "moe_eval_capacity_token_fraction": cap,
+                            "use_moe_pad_mask": False,
+                            "pass_tokens_transformer_layer": False,
+                            "replication_count": self.config.replication_count,
+                        }
+                        moe_params = (
+                            "--is-moe "
+                            f"--distributed-world-size {world_size} "
+                            f"--distributed-port {port} "
+                            f'--model-overrides "{repr(model_overrides)}" '
+                        )
+                    else:
+                        moe_params = ""
+                        max_sentences = 50
+                        cap = "no_cap"
 
-                if job_config.datalabel:
-                    out_dir = os.path.join(
-                        self.config.output_dir,
-                        f"gen_output_{job_config.datalabel}_{cap}",
-                        f"{src}-{tgt}_{job_config.checkpoint}_{job_config.gen_split}",
-                    )
-                else:
-                    out_dir = os.path.join(
-                        self.config.output_dir,
-                        f"gen_output_{cap}",
-                        f"{src}-{tgt}_{job_config.checkpoint}_{job_config.gen_split}",
-                    )
+                    if job_config.datalabel:
+                        out_dir = os.path.join(
+                            self.config.output_dir,
+                            f"gen_output_{job_config.datalabel}_{cap}",
+                            f"{src}-{tgt}_{job_config.checkpoint}_{job_config.gen_split}",
+                        )
+                    else:
+                        out_dir = os.path.join(
+                            self.config.output_dir,
+                            f"gen_output_{cap}",
+                            f"{src}-{tgt}_{job_config.checkpoint}_{job_config.gen_split}",
+                        )
 
-                os.makedirs(out_dir, exist_ok=True)
-                # check if generation was completed before
-                has_completed_before = False
-                if os.path.exists(os.path.join(out_dir, "bleu.results")):
-                    with open(os.path.join(out_dir, "bleu.results"), "r") as f:
-                        for line in f.readlines():
-                            if "BLEU" in line:
-                                has_completed_before = True
-                if has_completed_before:
-                    continue
-                checkpoint_name = job_config.checkpoint
-                if self.config.model_type == "dense":
-                    checkpoint_name += "-shard0"
-                model = os.path.join(
-                    self.config.model_folder, f"{job_config.checkpoint}.pt"
-                )
-                # TODO maybe call generate main directly here with a hydra config
-                generate_command = (
-                    f"python {self.config.fairseq_root}/fairseq_cli/generate.py "
-                    f" {self.config.data} "
-                    f" --path {model} "
-                    f" --task translation_multi_simple_epoch "
-                    f" --langs \"{','.join(self.config.model_config.langs)}\" "
-                    f'--lang-pairs "{src}-{tgt}"'
-                    f" --source-lang {src} "
-                    f" --target-lang {tgt} "
-                    f'--encoder-langtok "{self.config.encoder_langtok}"'
-                    " --decoder-langtok "
-                    f" --gen-subset {job_config.gen_split} "
-                    f" --beam {self.config.beam_size} "
-                    " --bpe 'sentencepiece' "
-                    f" --sentencepiece-model {self.config.spm_model} "
-                    " --sacrebleu "
-                    " --enable-m2m-validation "
-                    f"{'--add-data-source-prefix-tags' if self.config.add_data_source_prefix_tags else ''}"
-                    f" {'--fp16' if self.config.fp16 else ''}"
-                    f" {moe_params} "
-                    f" {finetune_dict_specs} "
-                    f" --max-sentences {max_sentences} "
-                    f" --results-path {out_dir} >> {out_dir}/eval.out 2>&1 "
-                )
-                post_proc_command = (
-                    f"/bin/bash -o pipefail -c '"
-                    + f"cat {out_dir}/generate-{job_config.gen_split}.txt"
-                    + ' | grep -aP "^D-"'
-                    + " | sort -nr -k1.2 "
-                    + " | cut -f3' "
-                    + " | sed 's/^<MINED_DATA> //g' "
-                    + f" > {out_dir}/gen_best.output"
-                )
-                if job_config.datalabel:
-                    ref_split = "dev" if job_config.gen_split == "valid" else "test"
-                    ref_file = os.path.join(
-                        self.config.cluster.non_flores_path,
-                        job_config.datalabel,
-                        f"{ref_split}.{src}-{tgt}.{tgt}",
+                    os.makedirs(out_dir, exist_ok=True)
+                    # check if generation was completed before
+                    has_completed_before = False
+                    if os.path.exists(os.path.join(out_dir, "bleu.results")):
+                        with open(os.path.join(out_dir, "bleu.results"), "r") as f:
+                            for line in f.readlines():
+                                if "BLEU" in line:
+                                    has_completed_before = True
+                    if has_completed_before:
+                        continue
+                    checkpoint_name = job_config.checkpoint
+                    if self.config.model_type == "dense":
+                        checkpoint_name += "-shard0"
+                    model = os.path.join(
+                        self.config.model_folder, f"{checkpoint_name}.pt"
                     )
-                else:
-                    # Default evaluation on Flores
-                    flores_split = (
-                        "dev" if job_config.gen_split == "valid" else "devtest"
+                    # TODO maybe call generate main directly here with a hydra config
+                    generate_command = (
+                        f"python {self.config.fairseq_root}/fairseq_cli/generate.py "
+                        f" {self.config.data} "
+                        f" --path {model} "
+                        f" --task translation_multi_simple_epoch "
+                        f" --langs \"{','.join(self.config.model_config.langs)}\" "
+                        f'--lang-pairs "{src}-{tgt}"'
+                        f" --source-lang {src} "
+                        f" --target-lang {tgt} "
+                        f'--encoder-langtok "{self.config.encoder_langtok}"'
+                        " --decoder-langtok "
+                        f" --gen-subset {job_config.gen_split} "
+                        f" --beam {self.config.beam_size} "
+                        " --bpe 'sentencepiece' "
+                        f" --sentencepiece-model {self.config.spm_model} "
+                        " --sacrebleu "
+                        " --enable-m2m-validation "
+                        f"{'--add-data-source-prefix-tags' if self.config.add_data_source_prefix_tags else ''}"
+                        f" {'--fp16' if self.config.fp16 else ''}"
+                        f" {moe_params} "
+                        f" {finetune_dict_specs} "
+                        f" --max-sentences {max_sentences} "
+                        f" --results-path {out_dir} >> {out_dir}/eval.out 2>&1 "
                     )
-                    ref_file = os.path.join(
-                        self.config.cluster.flores_path,
-                        flores_split,
-                        f"{tgt}.{flores_split}",
+                    post_proc_command = (
+                        f"/bin/bash -o pipefail -c '"
+                        + f"cat {out_dir}/generate-{job_config.gen_split}.txt"
+                        + ' | grep -aP "^D-"'
+                        + " | sort -nr -k1.2 "
+                        + " | cut -f3' "
+                        + " | sed 's/^<MINED_DATA> //g' "
+                        + f" > {out_dir}/gen_best.output"
                     )
-                # Install `pip install git+https://github.com/mjpost/sacrebleu.git@master`
-                # spm BLEU Eval
-                bleu_command = (
-                    f"SACREBLEU_FORMAT=text "
-                    + f"sacrebleu -tok spm {ref_file} < {out_dir}/gen_best.output "
-                    + f" > {out_dir}/bleu.results"
-                )
-                # chrf++ Eval
-                chrf_command = (
-                    f"sacrebleu -m chrf --chrf-word-order 2 -tok spm {ref_file} < {out_dir}/gen_best.output "
-                    + f" > {out_dir}/chrf.results"
-                )
-                if job_config.datalabel:
-                    # --tok intl (--zh for zh)
-                    sacrebleu_command = (
+                    if job_config.datalabel:
+                        ref_split = "dev" if job_config.gen_split == "valid" else "test"
+                        ref_file = os.path.join(
+                            self.config.cluster.non_flores_path,
+                            job_config.datalabel,
+                            f"{ref_split}.{src}-{tgt}.{tgt}",
+                        )
+                    else:
+                        # Default evaluation on Flores
+                        flores_split = (
+                            "dev" if job_config.gen_split == "valid" else "devtest"
+                        )
+                        ref_file = os.path.join(
+                            self.config.cluster.flores_path,
+                            f'{src}-{tgt}',
+                            # flores_split,
+                            f"flores202.{tgt}",
+                        )
+                    # Install `pip install git+https://github.com/mjpost/sacrebleu.git@master`
+                    # spm BLEU Eval
+                    bleu_command = (
                         f"SACREBLEU_FORMAT=text "
-                        + f"sacrebleu -tok {'zh' if tgt == 'zho_Hans' else 'intl'}"
-                        + f" {ref_file} < {out_dir}/gen_best.output "
-                        + f" > {out_dir}/sacrebleu.results"
+                        + f"sacrebleu -tok flores200 {ref_file} < {out_dir}/gen_best.output "
+                        + f" > {out_dir}/bleu.results"
                     )
-                else:
-                    sacrebleu_command = ""
+                    # chrf++ Eval
+                    chrf_command = (
+                        f"sacrebleu -m chrf --chrf-word-order 2 {ref_file} < {out_dir}/gen_best.output "
+                        + f" > {out_dir}/chrf.results"
+                    )
+                    if job_config.datalabel:
+                        # --tok intl (--zh for zh)
+                        sacrebleu_command = (
+                            f"SACREBLEU_FORMAT=text "
+                            + f"sacrebleu -tok {'zh' if tgt == 'zho_Hans' else 'intl'}"
+                            + f" {ref_file} < {out_dir}/gen_best.output "
+                            + f" > {out_dir}/sacrebleu.results"
+                        )
+                    else:
+                        sacrebleu_command = ""
 
-                full_command = "\n".join(
-                    [
-                        generate_command,
-                        post_proc_command,
-                        bleu_command,
-                        chrf_command,
-                        sacrebleu_command,
-                    ]
-                )
-                if self.config.get("debug", False):
-                    print(full_command)
-                else:
-                    generate_command_file = os.path.join(out_dir, "gen.sh")
-                    with open(generate_command_file, "w") as f:
-                        f.write(full_command)
-                    subprocess.run(
-                        full_command,
-                        shell=True,
-                        check=True,
+                    full_command = "\n".join(
+                        [
+                            generate_command,
+                            post_proc_command,
+                            bleu_command,
+                            chrf_command,
+                            sacrebleu_command,
+                        ]
                     )
-            except Exception as e:
-                print(e)
-                continue
+                    if self.config.get("debug", False):
+                        print(full_command)
+                    else:
+                        generate_command_file = os.path.join(out_dir, "gen.sh")
+                        with open(generate_command_file, "w") as f:
+                            f.write(full_command)
+                        subprocess.run(
+                            full_command,
+                            shell=True,
+                            check=True,
+                        )
+                except Exception as e:
+                    print(e)
+                    continue
 
 
 def get_type(pair):
     if "-" not in pair:
         return None
-    from examples.nllb.modeling.evaluation.train_example_count import flores200_public
-    from examples.nllb.modeling.evaluation.train_example_count.code_mapping import (
+    from train_example_count import flores200_public
+    from train_example_count.code_mapping import (
         lang_code_map,
     )
 
@@ -470,7 +473,10 @@ async def _main(config):
 
 @hydra.main(config_path="conf", config_name="generate_multi_full")
 def main(config: DictConfig) -> None:
-    asyncio.run(_main(config))
+    launcher = hydra.utils.instantiate(config.launcher)
+    module = GenerateMultiModule(config)
+    asyncio.run(module.run())
+    # asyncio.run(tabulate(config))
 
 
 if __name__ == "__main__":

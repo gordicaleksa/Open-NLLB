@@ -2,6 +2,6 @@
 
 defaults:
   - cache: no_cache
-  - lang: ???
+  # - lang: ???
 
 _target_: stopes.core.Launcher

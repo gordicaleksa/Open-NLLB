@@ -1,4 +1,4 @@
-cluster_name: example
-partition: ???
+cluster_name: localcluster
+partition: null
 memory_multiplier: 50
 timeout_min: 1000

@@ -2,8 +2,8 @@ defaults:
   - default
 
 dataset_name: "fbseed_chat"
-num_shards: 1
+num_shards: 28
 langs_file: "examples/nllb/modeling/scripts/flores200/langs.txt"
-lang_pairs: "eng_Latn-wol_Latn"
+lang_pairs: "eng_Latn-spa_Latn,eng_Latn-rus_Cyrl,tur_Latn-rus_Cyrl"
 data_prefix:
-  example: /data/nllb/non_flores_v4.2/fbseed_chat/data_bin
+  localcluster: /home/aleksa/Projects/nllb/stopes/stopes/pipelines/prepare_data/processed_data_new/data_bin

@@ -1,7 +1,7 @@
 name: example
-data_dir: /data/nllb
-partition: ???
-flores_path: /data/nllb/flores200
+data_dir: /home/aleksa/Projects/nllb/stopes/stopes/pipelines/prepare_data/
+partition: null
+flores_path: /home/aleksa/Projects/nllb/fairseq/examples/nllb/data/eval_datasets/flores202_dev
 non_flores_path: /data/nllb/non_flores_evaluation_data
 memory_multiplier: 50
 timeout_min: 1000

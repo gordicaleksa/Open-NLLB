@@ -1,10 +1,19 @@
 defaults:
   - generate_multi
-  - override lang_config: flores200.sampled
+  - override launcher: local
+  - override lang_config: custom
   - override model_config: flores200.full
 
-fairseq_root: ???
-model_folder: ???
+fairseq_root: /home/aleksa/Projects/nllb/fairseq/
+model_folder: /home/aleksa/Projects/nllb/fairseq/model_checkpoints/first_run
+eval_on: all
 
-model_type: moe
+spm_model: /home/aleksa/Projects/nllb/fairseq/flores200_sacrebleu_tokenizer_spm.model
+lang_pairs_per_job: 10
+gen_splits:
+  - valid
+encoder_langtok: src
+model_type: dense
 add_data_source_prefix_tags: true
+beam_size: 5
+replication_count: 1

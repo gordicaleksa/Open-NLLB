@@ -5,13 +5,16 @@ defaults:
   - override model_type: dense
 
 train_prefix: "dense"
-arch: "transformer_24_24_big"
+arch: "transformer_12_12"
 train_subset: "train"
 
+fairseq_root: /home/aleksa/Projects/nllb/fairseq/
+output_dir: /home/aleksa/Projects/nllb/fairseq/model_checkpoints
+
 # update/checkpoint
-validate_interval_updates: 10
+validate_interval_updates: 500
 save_interval: 1000
-save_interval_updates: 50
+save_interval_updates: 1000
 keep_interval_updates: 1
 best_checkpoint_metric: "nll_loss"
 synchronize_checkpoints_before_copy: true
@@ -21,14 +24,14 @@ temp: 1
 max_time_mins: 200
 
 # batch size
-max_tokens: 250
+max_tokens: 2048
 update_freq: 1
-num_nodes: 8
-num_gpus_per_node: 8
+num_nodes: 1
+num_gpus_per_node: 2
 lr: 0.00005
 lr_scheduler: "inverse_sqrt"
-max_updates: 50
-warmup: 10
+max_updates: 100000
+warmup: 500
 
 symlink_best_and_last_checkpoints: true
 finetune_from_model: null
