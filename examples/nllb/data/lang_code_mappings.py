@@ -707,6 +707,10 @@ ISO_639_1_TO_ISO_639_3 = {
     "sr" : "srp",
     "bs" : "bos",
     "hr" : "hrv",
+    "de" : "deu",
+    "el" : "ell",
+    "pl" : "pol",
+    "es" : "spa",
 }
 
 def ISO_639_1_TO_BCP_47_func(iso_639_1_code):

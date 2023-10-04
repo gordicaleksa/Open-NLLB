@@ -1,12 +1,14 @@
 from collections import Counter
 from dataclasses import dataclass
+import logging
 from pathlib import Path
 import re
 import subprocess
 import shlex
+import string
 import typing as tp
 from typing import Dict, List, Optional, Set
-
+import unicodedata
 
 import xxhash
 
@@ -101,18 +103,52 @@ PUNCT_OR_NON_PRINTING_CHARS_RE = re.compile(
     (UNICODE_PUNCT_RE.pattern + NON_PRINTING_CHARS_RE.pattern).replace("][", "")
 )
 
+def remove_non_printing_char(text: str) -> str:
+    return NON_PRINTING_CHARS_RE.sub("", text)
+
+
+def replace_unicode_punct(text: str) -> str:
+    return "".join((UNICODE_PUNCT.get(c, c) for c in text))
+
+
+def normalize_whitespace(s):
+    # Replace sequences of whitespace characters with a single space
+    s = re.sub(r'\s+', ' ', s)
+    # Remove leading and trailing whitespace
+    return s.strip()
+
+
+def strip_accents(line: str) -> str:
+    """Strips accents from a piece of text."""
+    nfd = unicodedata.normalize("NFD", line)
+    output = [c for c in nfd if unicodedata.category(c) != "Mn"]
+    if len(output) == line:
+        return line
+    return "".join(output)
+
+
+def normalize_for_lid(line: str) -> str:
+    line = normalize_whitespace(line)
+    line = line.lower()
+    line = DIGIT_RE.sub("", line)  # remove digits
+    line = remove_non_printing_char(line)
+    line = replace_unicode_punct(line)
+    line = line.translate(str.maketrans('', '', string.punctuation))  # Remove all punctuation.
+    # line = strip_accents(line)
+    line = re.sub(r'\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}', '', line)  # remove ip addresses
+    line = re.sub(r'http\S+', '', line)  # remove urls
+    line = normalize_whitespace(line)
+    return line
+
 
 def normalize_for_dedup(line: str) -> str:
-    line = line.strip()
+    line = normalize_whitespace(line)
     if not line:
         return line
-    # case
     line = line.lower()
-    # numbers
     line = DIGIT_RE.sub("0", line)
     line = PUNCT_OR_NON_PRINTING_CHARS_RE.sub("", line)
-    # tab
-    line = line.replace("\t", "")
+    line = strip_accents(line)
     return line
 
 
@@ -242,6 +278,79 @@ class DedupFilter(Filter):
                 counts.source_dedup += 1
                 return None
             self.source_dup_counts[line_hash] += 1
+
+        return line
+
+
+class LengthFilter(Filter):
+    def __init__(
+        self,
+        min_len: Optional[int],
+        max_len: Optional[int],
+        max_len_ratio: Optional[float],
+        length_factors: Dict[str, float],
+        src_lang: str,
+        tgt_lang: str,
+    ):
+        self.min_len = min_len
+        self.max_len = max_len
+        self.max_len_ratio = max_len_ratio
+
+        try:
+            self.src_factor = length_factors[src_lang]
+        except KeyError:
+            logging.warning(f"Missing length factor for {src_lang}")
+            self.src_factor = 1.0
+
+        try:
+            self.tgt_factor = length_factors[tgt_lang]
+        except KeyError:
+            logging.warning(f"Missing length factor for {tgt_lang}")
+            self.tgt_factor = 1.0
+
+    def filter_line(
+        self, line: DatasetLine, counts: FilteringCounts
+    ) -> Optional[DatasetLine]:
+        # filter empty lines
+        if not line.src or (line.tgt is not None and not line.tgt):
+            counts.empty += 1
+            return None
+
+        if line.tgt is not None:
+            if not line.tgt:
+                counts.empty += 1
+                return None
+
+        if (
+            self.min_len
+            or self.max_len
+            or self.max_len_ratio
+        ):
+            # min len, max len
+            src_len = max(1, len(line.src) * self.src_factor)
+            if self.min_len is not None and src_len < self.min_len:
+                counts.min_len += 1
+                return None
+            if self.max_len is not None and src_len > self.max_len:
+                counts.max_len += 1
+                return None
+            # same as above, but for tgt if set
+            if line.tgt is not None:
+                tgt_len = max(1, len(line.tgt) * self.tgt_factor)
+                if self.min_len is not None and tgt_len < self.min_len:
+                    counts.min_len += 1
+                    return None
+                if self.max_len is not None and tgt_len > self.max_len:
+                    counts.max_len += 1
+                    return None
+                # len ratio
+                if self.max_len_ratio is not None:
+                    ratio = (
+                        src_len / tgt_len if src_len > tgt_len else tgt_len / src_len
+                    )
+                    if ratio > self.max_len_ratio:
+                        counts.max_len_ratio += 1
+                        return None
 
         return line
 

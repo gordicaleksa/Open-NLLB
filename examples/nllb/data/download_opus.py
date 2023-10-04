@@ -38,10 +38,154 @@ import re
 
 
 from opustools import OpusRead, OpusGet
+from tqdm import tqdm
 
 
 from lang_code_mappings import ISO_639_1_TO_BCP_47_func
 from download_parallel_corpora import gzip_extract_and_remove
+
+
+german_datasets = [
+    "Wikipedia",
+    "Europarl",
+    "WikiTitles",
+    "EMEA",
+    "ELRC-5067-SciPar",
+    "GNOME",
+    "ELRC-2714-EMEA",
+    "JRC-Acquis",
+    "ELRC_2682",
+    "QED",
+    "Tanzil",
+    "ELRC-1077-EUIPO_law",
+    "ELRC-EUIPO_law",
+    "News-Commentary",
+    "Tatoeba",
+    "TED2020",
+    "ELITR-ECA",
+    "KDE4",
+    "MultiUN",
+    "NeuLab-TedTalks",
+    "ELRC-1121-CORDIS_Results_Brief",
+    "ELRC-CORDIS_Results",
+    "wikimedia",
+    "TED2013",
+    "ELRC-EUIPO_list",
+    "ECB",
+    "ELRC-1117-CORDIS_News",
+    "ELRC-CORDIS_News",
+    "ELRA-W0201",
+    "ELRC-638-Luxembourg.lu",
+    "Mozilla-I10n",
+    "GlobalVoices",
+    "bible-uedin"
+]
+
+greek_datasets = [
+    "LinguaTools-WikiTitles",
+    "Europarl",
+    "EMEA",
+    "GNOME",
+    "ELRC-2711-EMEA",
+    "ELRC_2682",
+    "ELRC-5067-SciPar",
+    "QED",
+    "wikimedia",
+    "ELITR-ECA",
+    "TED2020",
+    "SETIMES",
+    "ELRC-presscorner_covid",
+    "KDE4",
+    "NeuLab-TedTalks",
+    "ELRC-Press_Releases",
+    "GlobalVoices",
+    "Wikipedia"
+]
+
+french_datasets = [
+    "ELRC-EUIPO_law",
+    "Europarl",
+    "wikimedia",
+    "EMEA",
+    "ELRC-5067-SciPar",
+    "QED",
+    "GNOME",
+    "JRC-Acquis",
+    "Wikipedia",
+    "ELRC-2720-EMEA",
+    "ELITR-ECA",
+    "TED2020",
+    "GlobalVoices",
+    "News-Commentary",
+    "Tatoeba",
+    "ELRC-1122-CORDIS_Results_Brief",
+    "ELRC-CORDIS_Results",
+    "MDN_Web_Docs",
+    "KDE4",
+    "NeuLab-TedTalks",
+    "ECB",
+    "ELRC-EUIPO_list",
+    "TED2013",
+    "Tanzil",
+    "ELRC-1118-CORDIS_News",
+    "ELRC-CORDIS_News"
+]
+
+polish_datasets = [
+    "TildeMODEL",
+    "ELRC-CORDIS_News",
+    "JRC-Acquis",
+    "EMEA",
+    "ELRC-5067-SciPar",
+    "ELRC-2726-EMEA",
+    "Europarl v8",
+    "QED",
+    "GNOME",
+    "EUbookshop",
+    "EuroPat",
+    "ELITR-ECA",
+    "TED2020",
+    "KDE4",
+    "ELRC-1124-CORDIS_Results_Brief",
+    "NeuLab-TedTalks",
+    "ELRC-presscorner_covid",
+    "Wikipedia",
+    "TED2013",
+    "Tanzil",
+]
+
+arabic_datasets = [
+    "QED",
+    "wikimedia",
+    "GNOME",
+    "TED2020",
+    "Tanzil",
+    "NeuLab-TedTalks",
+    "News-Commentary",
+    "TED2013",
+    "Wikipedia",
+    "KDE4",
+    "bible-uedin",
+    "GlobalVoices",
+    "infopankki"
+]
+
+spanish_datasets = [
+    "wikimedia",
+    "Europarl",
+    "Wikipedia",
+    "QED",
+    "EMEA",
+    "GNOME",
+    "JRC-Acquis",
+    "ELRC-2722-EMEA",
+    "GlobalVoices",
+    "ELITR-ECA",
+    "SciELO",
+    "TED2020",
+    "News-Commentary",
+    "ELRC-5067-SciPar v1",
+]
 
 
 # Not used atm - experimental.
@@ -89,7 +233,8 @@ def get_ignore_corpora_lists():
     ignore_corpora_list['hr'] = ["OpenSubtitles", "NLLB", "CCMatrix"]
     ignore_corpora_list['bs'] = ["OpenSubtitles", "NLLB"]
     ignore_corpora_list['sr'] = ["OpenSubtitles", "NLLB", "CCMatrix"]
-    ignore_corpora_list = {k: [el.lower() for el in v] for k, v in ignore_corpora_list.items()}
+    for key in ignore_corpora_list.keys():
+        ignore_corpora_list[key] = [el.lower() for el in ignore_corpora_list[key]]
     return ignore_corpora_list
 
 
@@ -131,7 +276,7 @@ def download_data_from_opus(args):
         allow_list = [el.lower() for el in allow_list]
 
     bad_corpora_list = []
-    for cnt, corpus in enumerate(corpora_list):
+    for cnt, corpus in enumerate(tqdm(corpora_list, total=len(corpora_list))):
 
         print('*' * 100)
         print(f"{cnt} {'SKIPPING' if corpus in ignore_list else 'Processing'} Corpus: {corpus}, src_lang: {src_lang}, trg_lang: {trg_lang}")
@@ -196,10 +341,10 @@ if __name__ == "__main__":
         "--trg_lang",
         "-t",
         type=str,
-        default="sr",
+        default="es",
         help="target language in ISO 639-1 format",
     )
-    parser.add_argument("--corpora_list", default=["all"], type=str, nargs="+")
+    parser.add_argument("--corpora_list", default=spanish_datasets, type=str, nargs="+")
     parser.add_argument(
         '--use_caching',
         '-c',

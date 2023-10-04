@@ -1627,4 +1627,6 @@ if __name__ == "__main__":
     if eval_datasets_path:
         # Evaluation datasets
         # download_NLLBMD(eval_datasets_path)
-        download_Flores202(eval_datasets_path, ["eng_Latn-rus_Cyrl", "tur_Latn-uzn_Latn"])
+        fasttext_lang_codes = ["srp_Cyrl", "bos_Latn", "hrv_Latn", "deu_Latn", "tur_Latn", "rus_Cyrl", "ell_Grek", "fra_Latn", "pol_Latn", "arb_Arab", "spa_Latn"]
+        fasttext_lang_codes = [f"eng_Latn-{lang_code}" for lang_code in fasttext_lang_codes]
+        download_Flores202(eval_datasets_path, fasttext_lang_codes)
