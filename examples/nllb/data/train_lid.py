@@ -84,13 +84,13 @@ def postprocess_and_add_label(data: Dict[str, List[str]], target_cnt_per_lang: i
 
 
 def generate_hbs_train_data():
-    target_cnt_per_lang = 3500000
+    target_cnt_per_lang = 800000  # 3500000
     lang_codes = ["srp_Cyrl", "hrv_Latn", "bos_Latn"]
     primary_data_root = "/home/aleksa/Projects/nllb/fairseq/examples/nllb/data/HBS_data/primary"
     data = defaultdict(list)
     cnts = defaultdict(int)
 
-    random_subsample_path = os.path.join(OUTPUT_DIR, "hbs_random_subsample.pkl")
+    random_subsample_path = os.path.join(OUTPUT_DIR, f"hbs_random_subsample_{target_cnt_per_lang}.pkl")
     if os.path.exists(random_subsample_path):
         with open(random_subsample_path, "rb") as f:
             data = pickle.load(f)
@@ -121,7 +121,7 @@ def generate_hbs_train_data():
 
     # Step 3: length & exact dedup filtering
     print(f'Filtering data...')
-    filter_data_path = os.path.join(OUTPUT_DIR, "hbs_filter_data.pkl")
+    filter_data_path = os.path.join(OUTPUT_DIR, f"hbs_filter_data_{target_cnt_per_lang}.pkl")
     if os.path.exists(filter_data_path):
         with open(filter_data_path, "rb") as f:
             data = pickle.load(f)
@@ -132,7 +132,7 @@ def generate_hbs_train_data():
 
     # Step 4: postprocess and add label
     print(f'Postprocessing data...')
-    postprocess_data_path = os.path.join(OUTPUT_DIR, "hbs_postprocess_data.pkl")
+    postprocess_data_path = os.path.join(OUTPUT_DIR, f"hbs_postprocess_data_{target_cnt_per_lang}.pkl")
     if os.path.exists(postprocess_data_path):
         with open(postprocess_data_path, "rb") as f:
             all_lines = pickle.load(f)
@@ -146,7 +146,7 @@ def generate_hbs_train_data():
 
 def generate_non_hbs_train_data():
     non_eng_lang_codes = ["deu_Latn", "tur_Latn", "rus_Cyrl", "ell_Grek", "fra_Latn", "pol_Latn", "arb_Arab", "spa_Latn"]
-    target_cnt_per_lang = 10500000 // (len(non_eng_lang_codes) + 1)
+    target_cnt_per_lang = 2500000 // (len(non_eng_lang_codes) + 1)
     data_root_eng = "/home/aleksa/Projects/nllb/fairseq/examples/nllb/data/HBS_data/primary"
     data_root_non_eng = "/home/aleksa/Projects/nllb/fairseq/examples/nllb/data/train_datasets"  # Russian, Turkish
     data_root_deu = "/home/aleksa/Projects/nllb/fairseq/examples/nllb/data/OPUS/Opus_de"
@@ -158,7 +158,7 @@ def generate_non_hbs_train_data():
     data = defaultdict(list)
     cnts = defaultdict(int)
 
-    random_subsample_path = os.path.join(OUTPUT_DIR, "non_hbs_random_subsample.pkl")
+    random_subsample_path = os.path.join(OUTPUT_DIR, f"non_hbs_random_subsample_{target_cnt_per_lang}.pkl")
     if os.path.exists(random_subsample_path):
         with open(random_subsample_path, "rb") as f:
             data = pickle.load(f)
@@ -204,7 +204,7 @@ def generate_non_hbs_train_data():
             pickle.dump(data, f)
 
     # Step 3: length & exact dedup filtering
-    filter_data_path = os.path.join(OUTPUT_DIR, "non_hbs_filter_data.pkl")
+    filter_data_path = os.path.join(OUTPUT_DIR, f"non_hbs_filter_data_{target_cnt_per_lang}.pkl")
     if os.path.exists(filter_data_path):
         with open(filter_data_path, "rb") as f:
             data = pickle.load(f)
@@ -214,7 +214,7 @@ def generate_non_hbs_train_data():
             pickle.dump(data, f)
 
     # Step 4: postprocess and add label
-    postprocess_data_path = os.path.join(OUTPUT_DIR, "non_hbs_postprocess_data.pkl")
+    postprocess_data_path = os.path.join(OUTPUT_DIR, f"non_hbs_postprocess_data_{target_cnt_per_lang}.pkl")
     if os.path.exists(postprocess_data_path):
         with open(postprocess_data_path, "rb") as f:
             all_lines = pickle.load(f)
@@ -233,25 +233,38 @@ def generate_lid_data(train_path):
     all_lines = hbs_lines + non_hbs_lines
     random.shuffle(all_lines)
 
-    with open(train_path, "w") as f:
+    new_filename = f"{len(all_lines)}_{os.path.basename(train_path)}"
+    basepath = os.path.dirname(train_path)
+    with open(os.path.join(basepath, new_filename), "w") as f:
         f.write("\n".join(all_lines))
+
+    return len(all_lines)
 
 
 def train_and_save_model(generate_data=True, train_model=True, do_eval=True):
     train_path = os.path.join(OUTPUT_DIR, "hbs_lid.train")
     if generate_data:
-        generate_lid_data(train_path)
+        _ = generate_lid_data(train_path)
 
     model = None
-    model_path = os.path.join(OUTPUT_DIR, "hbs_lid_model.bin")
+    training_config = {
+        "lr": 0.8,
+        "epoch": 10,
+        "minn": 2,
+        "maxn": 5,
+        "wordNgrams": 1,
+        "minCount": 50,
+        "bucket": 1000000,
+        "dim": 256
+    }
+    prefix = "hbs_lid_model"
+    for key, value in training_config.items():
+        prefix += f"_{key}_{value}"
+    model_path = os.path.join(OUTPUT_DIR, f"{prefix}.bin")
     if train_model:
         model = fasttext.train_supervised(
-            input=train_path,
-            lr=0.5,
-            epoch=25,
-            wordNgrams=2,
-            bucket=200000,
-            dim=256
+            input=model_path,
+            **training_config
         )
         model.save_model(model_path)
 
