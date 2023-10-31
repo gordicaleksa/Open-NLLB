@@ -1480,7 +1480,15 @@ def download_Flores202(directory, eval_directions: List[str]):
 # HBS (Croatian, Bosnian, Serbian) specific data download functions.
 #
 def macaco_infer_lang_code(file_name):
-    if "bs" in file_name:
+    if "sl" in file_name:
+        return "slv_Latn"
+    elif "bg" in file_name:
+        return "bul_Cyrl"
+    elif "mk" in file_name:
+        return "mkd_Cyrl"
+    elif "uk" in file_name:
+        return "ukr_Cyrl"
+    elif "bs" in file_name:
         if "cyrillic" in file_name:
             return "bos_Cyrl"
         else:
@@ -1509,6 +1517,10 @@ def download_MaCoCu(directory):
         "https://www.clarin.si/repository/xmlui/bitstream/handle/11356/1814/MaCoCu-hr-en.sent.txt.gz",
         "https://www.clarin.si/repository/xmlui/bitstream/handle/11356/1819/MaCoCu-sr-en.cyrillic.sent.txt.gz",
         "https://www.clarin.si/repository/xmlui/bitstream/handle/11356/1819/MaCoCu-sr-en.latin.sent.txt.gz",
+        "https://www.clarin.si/repository/xmlui/bitstream/handle/11356/1815/MaCoCu-bg-en.sent.txt.gz",
+        "https://www.clarin.si/repository/xmlui/bitstream/handle/11356/1817/MaCoCu-mk-en.sent.txt.gz",
+        "https://www.clarin.si/repository/xmlui/bitstream/handle/11356/1813/MaCoCu-sl-en.sent.txt.gz",
+        "https://www.clarin.si/repository/xmlui/bitstream/handle/11356/1858/MaCoCu-uk-en.sent.txt.gz",
     ]
 
     for download_url in download_urls:

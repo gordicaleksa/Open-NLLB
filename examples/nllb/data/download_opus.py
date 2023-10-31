@@ -44,6 +44,7 @@ from tqdm import tqdm
 from lang_code_mappings import ISO_639_1_TO_BCP_47_func
 from download_parallel_corpora import gzip_extract_and_remove
 
+slavic_langs_codes_minus_hbs = ['be', 'bg', 'cs', 'mk', 'pl', 'ru', 'sk', 'sl', 'uk', 'szl']
 
 german_datasets = [
     "Wikipedia",
@@ -233,6 +234,17 @@ def get_ignore_corpora_lists():
     ignore_corpora_list['hr'] = ["OpenSubtitles", "NLLB", "CCMatrix"]
     ignore_corpora_list['bs'] = ["OpenSubtitles", "NLLB"]
     ignore_corpora_list['sr'] = ["OpenSubtitles", "NLLB", "CCMatrix"]
+    ignore_corpora_list['be'] = ["NLLB"]
+    ignore_corpora_list['bg'] = ["CCMatrix", "OpenSubtitles", "NLLB", "ELRC-EMEA", "ParaCrawl", "CCAligned"]
+    ignore_corpora_list['cs'] = ["CCMatrix", "OpenSubtitles", "NLLB", "ELRC-EMEA", "ParaCrawl", "CCAligned", "StanfordNLP-NMT", "DGT"]
+    ignore_corpora_list['mk'] = ["CCMatrix", "OpenSubtitles", "NLLB", "CCAligned"]
+    ignore_corpora_list['pl'] = ["CCMatrix", "OpenSubtitles", "NLLB", "ELRC-EMEA", "ParaCrawl", "CCAligned", "LinguaTools-WikiTitles", "DGT", "XLEnt"]
+    ignore_corpora_list['ru'] = ["CCMatrix", "OpenSubtitles", "NLLB", "ParaCrawl", "CCAligned", "XLEnt", "UNPC", "LinguaTools-WikiTitles", "MultiUN", "WikiMatrix"]
+    ignore_corpora_list['sk'] = ["CCMatrix", "OpenSubtitles", "NLLB", "ELRC-EMEA", "ParaCrawl", "CCAligned", "DGT", "ELRC-4154-NTEU_TierA"]
+    ignore_corpora_list['sl'] = ["CCMatrix", "OpenSubtitles", "NLLB", "ELRC-EMEA", "ParaCrawl", "CCAligned", "DGT"]
+    ignore_corpora_list['uk'] = ["CCMatrix", "NLLB", "ParaCrawl", "CCAligned"]
+    ignore_corpora_list['szl'] = ["NLLB"]
+
     for key in ignore_corpora_list.keys():
         ignore_corpora_list[key] = [el.lower() for el in ignore_corpora_list[key]]
     return ignore_corpora_list
@@ -252,7 +264,7 @@ def download_data_from_opus(args):
     # For Serbian GNOME has only 147 sentences in the moses file from the website (even though the website reports 0.6M) and the opus tool can't parse it successfully.
     # Edit: I managed to get it to work - turns out the issues was <s> tag being a part of content and messing up the parser.
     # I just added try except around sentence parsing and we ignore such sentences.
-    root_directory = args.root_directory
+    root_directory = os.path.join(args.root_directory, args.trg_lang)
     opus_download_folder = os.path.join(root_directory, 'opus_download')
     use_caching = args.use_caching
     src_lang = args.src_lang
@@ -319,6 +331,35 @@ def download_data_from_opus(args):
         f.write('\n'.join(bad_corpora_list))
 
 
+def prepare_opus_data_structure():
+    in_root_path = "/hdd/open-nllb-data/slavic_data/"
+    out_path_mined = "/hdd/open-nllb-data/slavic_data/tmp_out/mined"
+    out_path_primary = "/hdd/open-nllb-data/slavic_data/tmp_out/primary"
+    mined_datasets = ["CCAligned", "CCMatrix", "NLLB", "ParaCrawl", "WikiMatrix", "XLEnt"]
+    for dir_name in os.listdir(in_root_path):
+        if dir_name.startswith('tmp'):
+            continue
+
+        dir_path = os.path.join(in_root_path, dir_name)
+        for subdir_name in os.listdir(dir_path):
+            subdir_path = os.path.join(dir_path, subdir_name)
+            assert len(os.listdir(subdir_path)) == 1, f'Expected 1 file, got {len(os.listdir(subdir_path))} {os.listdir(subdir_path)}'
+            if subdir_name in mined_datasets:
+                # move to mined
+                target_path = os.path.join(out_path_mined, subdir_name)
+                os.makedirs(target_path, exist_ok=True)
+                for file in os.listdir(subdir_path):
+                    shutil.move(os.path.join(subdir_path, file), target_path)
+                os.rmdir(subdir_path)
+            else:
+                # move to primary
+                target_path = os.path.join(out_path_primary, subdir_name)
+                os.makedirs(target_path, exist_ok=True)
+                for file in os.listdir(subdir_path):
+                    shutil.move(os.path.join(subdir_path, file), target_path)
+                os.rmdir(subdir_path)
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
             "Script to download OPUS data"
@@ -341,10 +382,10 @@ if __name__ == "__main__":
         "--trg_lang",
         "-t",
         type=str,
-        default="es",
-        help="target language in ISO 639-1 format",
+        default=slavic_langs_codes_minus_hbs,
+        help="target language in ISO 639-1 format", nargs="+",
     )
-    parser.add_argument("--corpora_list", default=spanish_datasets, type=str, nargs="+")
+    parser.add_argument("--corpora_list", default=['all'], type=str, nargs="+")
     parser.add_argument(
         '--use_caching',
         '-c',
@@ -359,7 +400,8 @@ if __name__ == "__main__":
 
     src_lang = args.src_lang
     trg_lang = args.trg_lang
-    assert len(src_lang) == 2, f'OPUS expects 2 letter language codes. Got: {src_lang}'
-    assert len(trg_lang) == 2, f'OPUS expects 2 letter language codes. Got: {trg_lang}'
 
-    download_data_from_opus(args)
+    trg_langs = args.trg_lang
+    for trg_lang in trg_langs:
+        args.trg_lang = trg_lang
+        download_data_from_opus(args)

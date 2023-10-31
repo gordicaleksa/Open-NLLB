@@ -15,6 +15,30 @@
 
 You can find more information down below.
 
+## Slavic languages we support
+
+Slavic languages supported by NLLB (and the script that is supported):
+* Belarusian (Cyrl)
+* Bosnian (Latn)
+* Bulgarian (Cyrl)
+* Czech (Latin)
+* Croatian (Latn)
+* Macedonian (Cyrl)
+* Polish (Latn)
+* Silesian (Latn)
+* Russian (Cyrl)
+* Slovak (Latn)
+* Slovenian aka Slovene (Latn)
+* Serbian (Cyrl)
+* Ukrainian (Cyrl)
+
+Baltic:
+* Lithuanian (Latn)
+* Latvian (Latn)
+* Latgalian (Latn)
+
+The only baltic language that is not supported is: Samogitian (~400k people speak it)
+
 ### Primary Datasets
 
 #### Public data

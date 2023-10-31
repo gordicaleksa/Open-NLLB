@@ -419,11 +419,13 @@ def train(
         fix_batches_to_gpus=cfg.distributed_training.fix_batches_to_gpus,
         shuffle=(epoch_itr.next_epoch_idx > cfg.dataset.curriculum),
     )
-    update_freq = (
-        cfg.optimization.update_freq[epoch_itr.epoch - 1]
-        if epoch_itr.epoch <= len(cfg.optimization.update_freq)
-        else cfg.optimization.update_freq[-1]
-    )
+    # Gradient accumulation
+    update_freq = cfg.optimization.update_freq[0]
+    # (
+    #     cfg.optimization.update_freq[epoch_itr.epoch - 1]
+    #     if epoch_itr.epoch <= len(cfg.optimization.update_freq)
+    #     else cfg.optimization.update_freq[-1]
+    # )
     if update_freq > 1:
         itr = iterators.GroupedIterator(
             itr,

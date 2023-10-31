@@ -150,6 +150,7 @@ def analyze_primary_data(args, features: list[FeatureType], langs: list[str] = N
 
     lid_per_line_dict = defaultdict(list)
 
+    langs_set = set()
     for i, (root_dir, _, files) in enumerate(os.walk(datasets_root)):
         files_and_lang_directions = retrieve_supported_files_and_iso_639_3_codes(files, is_gz)
         if len(files_and_lang_directions) == 0:
@@ -162,15 +163,22 @@ def analyze_primary_data(args, features: list[FeatureType], langs: list[str] = N
             file2 = files_and_lang_directions[i+1][0]
             lang_code1 = file1.split('.')[-1]
             lang_code2 = file2.split('.')[-1]
+            langs_set.add(lang_code1)
+            langs_set.add(lang_code2)
             file_path1 = os.path.join(root_dir, file1)
             file_path2 = os.path.join(root_dir, file2)
 
             cnt_pairs += 1
             if FeatureType.num_sentences in features:
-                print(f'{cnt_pairs*2}/{cnt} Counting lines in {file1} and {file2}.')
-                lang_num_sentences_dict[lang_code1] += count_lines(file_path1)
-                lang_num_sentences_dict[lang_code2] += count_lines(file_path2)
-                lang_direction_num_sentences[lang_direction] += count_lines(file_path1)
+                # print(f'{cnt_pairs*2}/{cnt} Counting lines in {file1} and {file2}.')
+                if langs and lang_code1 in langs:
+                    lang_num_sentences_dict[lang_code1] += count_lines(file_path1)
+
+                if langs and lang_code2 in langs:
+                    lang_num_sentences_dict[lang_code2] += count_lines(file_path2)
+
+                if langs and lang_code1 in langs and lang_code2 in langs:
+                    lang_direction_num_sentences[lang_direction] += count_lines(file_path1)
             if FeatureType.line_lengths in features:
                 if langs is None or lang_code1 in langs:
                     compute_line_lengths(lang_code1, file_path1, length_factors, lang_line_lengths_dict, verbose, is_gz)
@@ -207,6 +215,7 @@ def analyze_primary_data(args, features: list[FeatureType], langs: list[str] = N
                     duplicates_dict[corpus_name][lang_direction] += dataset_counts.pair_dedup
                     print(f'Found {dataset_counts.pair_dedup} duplicates for {root_dir}.')
 
+    print(langs_set)
     if FeatureType.dedup in features:
         print(duplicates_dict)
         print(f'Found {duplicates_cnt} duplicates for {langs[0]}.')
@@ -215,8 +224,8 @@ def analyze_primary_data(args, features: list[FeatureType], langs: list[str] = N
         print(f'Found {len(lang_num_sentences_dict)} langs out of 202.')
         print(f'Found {sum(lang_num_sentences_dict.values())} sentences.')
         print(f'Found {len(lang_direction_num_sentences)} lang directions.')
-        with open('lang_num_sentences.pickle', 'wb') as handle:
-            pickle.dump(lang_num_sentences_dict, handle, protocol=pickle.HIGHEST_PROTOCOL)
+        # with open('lang_num_sentences.pickle', 'wb') as handle:
+        #     pickle.dump(lang_num_sentences_dict, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
     #
     # Step 2: Visualize & analyze the information collected above
@@ -334,6 +343,26 @@ if __name__ == '__main__':
         help="Path to the length factors file (created in the stopes repo).",
     )
     args = parser.parse_args()
-    analyze_primary_data(args, [FeatureType.lid], langs=None)
+    slavic_langs = [
+        'bos_Latn',
+        'hrv_Latn',
+        'pol_Latn',
+        'szl_Latn',
+        'rus_Cyrl',
+        'srp_Cyrl',
+        'slk_Latn',
+        'slv_Latn',
+        'bul_Cyrl',
+        'ces_Latn',
+        'ukr_Cyrl',
+        'mkd_Cyrl',
+        'bel_Cyrl'
+    ]
+    hbs_langs = ['bos_Latn', 'hrv_Latn', 'srp_Cyrl']
+    root = args.datasets_root
+    slavic_without_hbs_langs = list(set(slavic_langs) - set(hbs_langs))
+    for lang in slavic_without_hbs_langs:
+        args.datasets_root = os.path.join(root, lang.split('_')[0])
+        analyze_primary_data(args, [FeatureType.lid], langs=slavic_without_hbs_langs)
     # analyze_dumps()
     # duplicate_analysis()

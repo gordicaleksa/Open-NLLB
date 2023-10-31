@@ -711,6 +711,14 @@ ISO_639_1_TO_ISO_639_3 = {
     "el" : "ell",
     "pl" : "pol",
     "es" : "spa",
+    "be" : "bel",
+    "bg" : "bul",
+    "cs" : "ces",
+    "mk" : "mkd",
+    "sk" : "slk",
+    "sl" : "slv",
+    "uk" : "ukr",
+    "szl": "szl",  # exception for Silesian
 }
 
 def ISO_639_1_TO_BCP_47_func(iso_639_1_code):
